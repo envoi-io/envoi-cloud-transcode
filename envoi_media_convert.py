@@ -180,8 +180,7 @@ class EnvoiMediaConvertCreateJobCommand:
         )
         parser.add_argument(
             '--simulate-reserve-queue',
-            choices=['DISABLED', 'ENABLED'],
-            default=None,
+            action='store_true',
             help='Optional. Enable this setting when you run a test job to estimate how many reserved transcoding '
             'slots (RTS) you need. When this is enabled, MediaConvert runs your job from an on-demand queue with '
             'similar performance to what you will see with one RTS in a reserved queue. This setting is disabled by '
