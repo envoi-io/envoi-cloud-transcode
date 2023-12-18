@@ -1,5 +1,25 @@
 # Envoi MediaConvert Utility
 
+## Installation of
+
+### Clone Repository
+
+```shell
+git clone https://github.com/envoi-io/envoi-media-convert.git
+```
+
+### Change Directory to the Project Root
+
+```shell
+cd envoi-media-convert
+```
+
+### Create Symbolic Link
+
+```shell
+ln -s `realpath envoi_media_convert.py` /usr/local/bin
+```
+
 ## Usage
 
 ### Create Job
