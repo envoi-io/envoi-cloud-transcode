@@ -1,4 +1,4 @@
-# Envoi Transcode
+# Envoi Video Transcoding CLI
 
 This project is a Python based command line utility CLI for the creating and managing video transcoding and quality assurance jobs using the AWS MediaConvert, Dolby Hybrik, Dolby Resource Agnostic Swarm Processing API "RASP", and Ateme Titan API. It provides methods and examples for job creation and job monitoring and interacting with each API.
 
