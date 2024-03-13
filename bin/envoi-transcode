@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+import sys
+import os
+
+dir_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(dir_path, '../src/'))
+
+from envoi.cli.transcode import EnvoiTranscodeCli
+
+
+def main():
+    return EnvoiTranscodeCli.run()
+
+
+if __name__ == '__main__':
+    sys.exit(main())
