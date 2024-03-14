@@ -1,0 +1,160 @@
+import json
+
+from envoi.cli import CliCommand
+from envoi.dolby.hybrik import HybrikApiClient
+
+COMMON_PARAMS = {
+    "api-url": {
+        "help": "The URL of the Hybrik API",
+        "default": "https://api-demo.hybrik.com/v1"
+    },
+    "oapi-key": {
+        "help": "Hybrik OAPI Key"
+    },
+    "oapi-secret": {
+        "help": "Hybrik OAPI Secret"
+    },
+    "auth-key": {
+        "help": "Hybrik Auth Key"
+    },
+    "auth-secret": {
+        "help": "Hybrik Auth Secret"
+    }
+}
+
+
+class HybrikApiCommand(CliCommand):
+    def run(self, opts=None):
+        opts = opts or self.opts
+        client_args = {
+            "oapi_key": getattr(opts, "oapi_key"),
+            "oapi_secret": getattr(opts, "oapi_secret"),
+            "auth_key": getattr(opts, "auth_key"),
+            "auth_secret": getattr(opts, "auth_secret")
+        }
+        base_url = getattr(opts, "api_url")
+        if base_url is not None:
+            client_args["api_url"] = base_url
+        client = HybrikApiClient(**client_args)
+        client.connect()
+        return client
+
+
+class CreateJobCommand(HybrikApiCommand):
+    DESCRIPTION = "Dolby Hybrik - Create Job"
+    PARAMS = {
+        **COMMON_PARAMS,
+        "name": {
+            "help": "The visible name of the job",
+            "default": None
+        },
+        "payload": {
+            "help": "Job Definition. This must be a JSON object",
+            "type": json.loads
+        },
+        "expiration": {
+            "help": "Expiration (in minutes) of the job. A completed job will expire and be deleted after ["
+                    "expiration] minutes. Default is 30 days."
+        },
+        "priority": {
+            "help": "The priority of the job",
+            "default": 100
+        },
+        "task-tags": {
+            "help": "A list of tags to apply to the job"
+        },
+        "user-tag": {
+            "help": "A user tag to apply to the job"
+        },
+        "task-retry-count": {
+            "help": "The number of times to retry a task"
+        },
+        "task-retry-delay-secs": {
+            "help": "The number of seconds to wait before retrying a task"
+        }
+    }
+
+    def run(self, opts=None):
+        if opts is None:
+            opts = self.opts
+        client = super().run(opts=opts)
+        name = getattr(opts, "name")
+        payload = getattr(opts, "payload")
+        schema = 'hybrik'
+        expiration = getattr(opts, "expiration")
+        priority = getattr(opts, "priority")
+        task_tags = getattr(opts, "task-tags")
+        user_tag = getattr(opts, "user-tag")
+        task_retry_count = getattr(opts, "task-retry-count")
+        task_retry_delay_secs = getattr(opts, "task-retry-delay-secs")
+
+        response = client.create_job(name, payload, schema, expiration, priority, task_tags,
+                                     task_retry_count, task_retry_delay_secs, user_tag)
+
+
+class ListJobsCommand(HybrikApiCommand):
+    DESCRIPTION = "Dolby Hybrik - List Jobs"
+    PARAMS = {
+        **COMMON_PARAMS,
+        "fields": {
+            "help": "Fields to return",
+            "default": None
+
+        },
+        "ids": {
+            "help": "Job IDs to return",
+            "default": None
+        },
+        "status": {
+            "help": "Job status to filter by",
+            "default": "all"
+        },
+        "take": {
+            "help": "Limit the number of jobs returned",
+            "default": 100
+        },
+        "skip": {
+            "help": "Offset the number of jobs returned",
+            "default": 0
+        },
+        "sort_field": {
+            "help": "Sort the jobs by a field",
+            "default": "id"
+        },
+
+
+    }
+
+    def run(self, opts=None):
+        if opts is None:
+            opts = self.opts
+
+        client = super().run(opts)
+        response = client.list_jobs()
+        print(json.dumps(response))
+        return response
+
+
+class GetJobResultsCommand(HybrikApiCommand):
+    DESCRIPTION = "Dolby Hybrik - Get Job Results"
+    PARAMS = {
+        **COMMON_PARAMS,
+        "job-id": {
+            "help": "Job ID"
+        }
+    }
+
+    def run(self, opts=None):
+        job_id = getattr(opts, "job-id")
+        response = super().run(opts).get_job_results(job_id)
+        print(response)
+
+
+class HybrikCommand(CliCommand):
+    DESCRIPTION = "Dolby Hybrik Commands"
+    SUBCOMMANDS = {
+        "create-job": CreateJobCommand,
+        "list-jobs": ListJobsCommand,
+        "get-job-definition": None,
+        "get-job-results": GetJobResultsCommand,
+    }
