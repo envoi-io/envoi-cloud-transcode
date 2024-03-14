@@ -18,6 +18,6 @@ class RaspApiClient(HttpClient):
         return self.put(endpoint, data)
 
     def get_asset_file(self, ruid, file_path):
-        endpoint = f'api/asset/{ruid}/{file_path}'
+        endpoint = f'asset/{ruid}/{file_path}'
         return self.get(endpoint)
 
