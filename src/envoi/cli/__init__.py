@@ -143,10 +143,9 @@ class CliApp(CliCommand):
     def parse_command_line(cls, cli_args=None, env_vars=None):
         if cli_args is None:
             cli_args = sys.argv[1:]
-
         if env_vars is None:
             env_vars = os.environ.copy()
-
+        # print(f"cli_args: {cli_args}")
         parent_parser = ArgumentParser(add_help=False)
 
         # main parser
@@ -159,8 +158,8 @@ class CliApp(CliCommand):
         pass
 
     @classmethod
-    def run(cls):
-        opts, _unhandled_args, env_vars, parser = cls.parse_command_line()
+    def run(cls, cli_args=None, env_vars=None):
+        opts, _unhandled_args, env_vars, parser = cls.parse_command_line(cli_args, env_vars)
 
         ch = logging.StreamHandler()
         ch.setLevel(opts.log_level.upper())
@@ -171,11 +170,10 @@ class CliApp(CliCommand):
             if hasattr(opts, 'handler'):
                 if opts.handler is not cls:
                     opts.handler(opts)
+                elif len(sys.argv) == 1:
+                        parser.print_help()
+                        return 1
             else:
-                parser.print_help()
-                return 1
-
-            if len(sys.argv) == 1:
                 parser.print_help()
                 return 1
 
