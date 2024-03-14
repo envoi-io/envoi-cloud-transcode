@@ -62,13 +62,20 @@ class HybrikApiClient(HttpClient):
             "name": name,
             "payload": payload,
             "schema": schema,
-            "expiration": expiration,
-            "priority": priority,
-            "task_tags": task_tags,
-            "user_tag": user_tag,
-            "task_retry_count": task_retry_count,
-            "task_retry_delay_secs": task_retry_delay_secs
         }
+        if expiration:
+            body["expiration"] = expiration
+        if priority:
+            body["priority"] = priority
+        if task_tags:
+            body["task_tags"] = task_tags
+        if user_tag:
+            body["user_tag"] = user_tag
+        if task_retry_count:
+            body["task_retry:count"] = task_retry_count
+        if task_retry_delay_secs:
+            body["task_retry:delay_secs"] = task_retry_delay_secs
+
         return self.call_api("post", endpoint, body=body)
 
     def delete_job(self, job_id):

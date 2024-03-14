@@ -50,27 +50,38 @@ class CreateJobCommand(HybrikApiCommand):
         },
         "payload": {
             "help": "Job Definition. This must be a JSON object",
-            "type": json.loads
+            "type": json.loads,
+            "default": None
+        },
+        "payload-file": {
+            "help": "A file containing the job definition",
+            "default": None
+
         },
         "expiration": {
             "help": "Expiration (in minutes) of the job. A completed job will expire and be deleted after ["
-                    "expiration] minutes. Default is 30 days."
+                    "expiration] minutes. Default is 30 days.",
+            "default": None
         },
         "priority": {
             "help": "The priority of the job",
             "default": 100
         },
         "task-tags": {
-            "help": "A list of tags to apply to the job"
+            "help": "A list of tags to apply to the job",
+            "default": None
         },
         "user-tag": {
-            "help": "A user tag to apply to the job"
+            "help": "A user tag to apply to the job",
+            "default": None
         },
         "task-retry-count": {
-            "help": "The number of times to retry a task"
+            "help": "The number of times to retry a task",
+            "default": None
         },
         "task-retry-delay-secs": {
-            "help": "The number of seconds to wait before retrying a task"
+            "help": "The number of seconds to wait before retrying a task",
+            "default": None
         }
     }
 
@@ -83,13 +94,14 @@ class CreateJobCommand(HybrikApiCommand):
         schema = 'hybrik'
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")
-        task_tags = getattr(opts, "task-tags")
-        user_tag = getattr(opts, "user-tag")
-        task_retry_count = getattr(opts, "task-retry-count")
-        task_retry_delay_secs = getattr(opts, "task-retry-delay-secs")
+        task_tags = getattr(opts, "task_tags")
+        user_tag = getattr(opts, "user_tag")
+        task_retry_count = getattr(opts, "task_retry_count")
+        task_retry_delay_secs = getattr(opts, "task_retry_delay_secs")
 
         response = client.create_job(name, payload, schema, expiration, priority, task_tags,
                                      task_retry_count, task_retry_delay_secs, user_tag)
+        print(json.dumps(response))
 
 
 class ListJobsCommand(HybrikApiCommand):
