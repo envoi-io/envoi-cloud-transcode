@@ -12,7 +12,9 @@ class HttpClient:
     DEFAULT_HOST_PORT = 443
     DEFAULT_BASE_PATH = ""
 
-    def __init__(self, base_url):
+    def __init__(self, base_url, output_curl=False):
+        self.output_curl = output_curl
+
         if base_url:
             self.base_url = base_url
 
@@ -49,12 +51,24 @@ class HttpClient:
             _query = {**default_query, **query}
         return urllib.parse.urlencode(_query)
 
+    def to_curl(self, method, path, headers=None, body=None):
+        headers = headers or {}
+        header_str = ' '.join(f'-H "{k}: {v}"' for k, v in headers.items())
+        data_str = f"--data '{body}'" if body else ""
+        full_url = f"https://{self.host}:{self.host_port}{path}"
+        return f"curl -X {method} {header_str} {data_str} \"{full_url}\""
+
     @classmethod
     def handle_response(cls, response):
         response_body = response.read()
-        content_type, header_attribs_raw = response.getheader("Content-Type").split(";")
-        header_attribs = dict(map(lambda x: x.strip().split("="), header_attribs_raw.split(",")))
-        charset = header_attribs.get("charset", "utf-8")
+        content_type_header = response.getheader("Content-Type")
+        if ";" in content_type_header:
+            content_type, header_attribs_raw = content_type_header.split(";")
+            header_attribs = dict(map(lambda x: x.strip().split("="), header_attribs_raw.split(",")))
+            charset = header_attribs.get("charset", "utf-8")
+        else:
+            content_type = content_type_header
+            charset = "utf-8"
         try:
             if content_type == 'text/plain:':
                 return response_body.decode(charset)
@@ -74,27 +88,40 @@ class HttpClient:
 
     def delete(self, endpoint, query=None, headers=None, default_headers=None):
         url = self.build_url(self.base_path, endpoint, query=query)
-        self.conn.request("DELETE", url, headers=self.build_headers(headers=headers, default_headers=default_headers))
+        headers = self.build_headers(headers=headers, default_headers=default_headers)
+        if self.output_curl:
+            print(self.to_curl("DELETE", url, headers))
+        self.conn.request("DELETE", url, headers=headers)
         response = self.conn.getresponse()
         return self.__class__.handle_response(response)
 
     def get(self, endpoint, query=None, headers=None, default_headers=None):
         url = self.build_url(self.base_path, endpoint, query=query)
-        self.conn.request("GET", url, headers=self.build_headers(headers=headers, default_headers=default_headers))
+        headers = self.build_headers(headers=headers, default_headers=default_headers)
+        if self.output_curl:
+            print(self.to_curl("GET", url, headers))
+        self.conn.request("GET", url, headers=headers)
         response = self.conn.getresponse()
         return self.__class__.handle_response(response)
 
     def put(self, endpoint, data, query=None, headers=None, default_headers=None):
         url = self.build_url(self.base_path, endpoint, query=query)
-        self.conn.request("PUT", url, body=json.dumps(data),
-                          headers=self.build_headers(headers=headers, default_headers=default_headers))
+        headers = self.build_headers(headers=headers, default_headers=default_headers)
+        body = json.dumps(data)
+        if self.output_curl:
+            print(self.to_curl("PUT", url, headers, body))
+        self.conn.request("PUT", url, body=body,
+                          headers=headers)
         response = self.conn.getresponse()
         return self.__class__.handle_response(response)
 
     def post(self, endpoint, data, query=None, headers=None, default_headers=None):
         url = self.build_url(self.base_path, endpoint, query=query)
-        self.conn.request("POST", url, body=json.dumps(data),
-                          headers=self.build_headers(headers=headers, default_headers=default_headers))
+        headers = self.build_headers(headers=headers, default_headers=default_headers)
+        body = json.dumps(data)
+        if self.output_curl:
+            print(self.to_curl("POST", url, headers, data))
+        self.conn.request("POST", url, body=body, headers=headers)
         response = self.conn.getresponse()
         return self.__class__.handle_response(response)
 
