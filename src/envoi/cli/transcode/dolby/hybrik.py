@@ -85,12 +85,22 @@ class CreateJobCommand(HybrikApiCommand):
         }
     }
 
+    @classmethod
+    def read_payload(cls, opts):
+        if getattr(opts, "payload") is not None:
+            return json.loads(getattr(opts, "payload"))
+        if getattr(opts, "payload_file") is not None:
+            with open(getattr(opts, "payload_file")) as f:
+                return json.load(f)
+        return None
+
     def run(self, opts=None):
         if opts is None:
             opts = self.opts
         client = super().run(opts=opts)
         name = getattr(opts, "name")
-        payload = getattr(opts, "payload")
+        # payload = getattr(opts, "payload")
+        payload = self.read_payload(opts)
         schema = 'hybrik'
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")

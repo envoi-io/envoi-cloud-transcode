@@ -53,6 +53,9 @@ class CreateVurlCommand(CliCommand):
         "config": {
             "help": "VURL Configuration"
         },
+        "config-file": {
+            "help": "VURL Configuration file"
+        },
         "config-mime": {
             "help": "VURL Configuration MIME type",
             "default": "application/json"
@@ -62,6 +65,14 @@ class CreateVurlCommand(CliCommand):
         }
     }
 
+    @classmethod
+    def read_config(cls, opts):
+        config_file = getattr(opts, 'config_file')
+        if config_file:
+            with open(config_file) as f:
+                return f.read()
+        return getattr(opts, 'config')
+
     def run(self, opts=None):
         if opts is None:
             opts = self.opts
@@ -69,7 +80,7 @@ class CreateVurlCommand(CliCommand):
         base_url = getattr(opts, 'base_url')
         ruid = getattr(opts, 'ruid')
         vurl = getattr(opts, 'vurl')
-        config = getattr(opts, 'config')
+        config = self.read_config(opts)
         config_mime = getattr(opts, 'config_mime')
         mime_type = getattr(opts, 'mime_type')
         data = {
