@@ -1,7 +1,7 @@
 import argparse
 import datetime
 import uuid
-from json import JSONEncoder
+import json
 import logging
 import os
 import sys
@@ -27,6 +27,27 @@ class CliArgParser(argparse.ArgumentParser):
     def to_dict(self):
         # noinspection PyProtectedMember
         return {a.dest: a.default for a in self._actions if isinstance(a, argparse._StoreAction)}
+
+
+def json_argument(arg):
+    if arg.startswith('file://'):
+        file_path = arg[7:]
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        else:
+            raise argparse.ArgumentTypeError(f"File {file_path} does not exist")
+    # elif arg.startswith('http://') or arg.startswith('https://'):
+    #     response = requests.get(arg)
+    #     try:
+    #         return response.json()
+    #     except json.JSONDecodeError:
+    #         raise argparse.ArgumentTypeError(f"Invalid JSON from URL: {arg}")
+    else:
+        try:
+            return json.loads(arg)
+        except json.JSONDecodeError:
+            raise argparse.ArgumentTypeError(f"Invalid JSON: {arg}")
 
 
 class CliCommand:
@@ -124,14 +145,14 @@ class ArgumentParser(argparse.ArgumentParser):
         return {a.dest: a.default for a in self._actions if isinstance(a, argparse._StoreAction)}
 
 
-class CustomJsonEncoder(JSONEncoder):
+class CustomJsonEncoder(json.JSONEncoder):
 
     def default(self, o):
         if isinstance(o, datetime.datetime):
             return o.isoformat()
         if isinstance(o, uuid.UUID):
             return str(o)
-        return JSONEncoder.default(self, o)
+        return json.JSONEncoder.default(self, o)
 
 
 class CliApp(CliCommand):
