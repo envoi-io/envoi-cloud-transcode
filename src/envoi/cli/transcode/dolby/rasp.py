@@ -47,31 +47,29 @@ class CreateVurlCommand(CliCommand):
         "ruid": {
             "help": "RUID of the asset"
         },
+        "body": {
+            "help": "The body of the request, as a JSON object. This is an array of VURL objects. If not provided, the "
+                    "body will be constructed from the other parameters.",
+            "type": json_argument,
+            "default": None
+        },
         "vurl": {
-            "help": "VURL of the asset"
+            "help": "VURL of the asset. Only used if body is not provided"
         },
         "config": {
-            "help": "VURL Configuration"
-        },
-        "config-file": {
-            "help": "VURL Configuration file"
+            "help": "VURL Configuration. Only used if body is not provided",
+            "type": json_argument,
+            "default": None
+
         },
         "config-mime": {
-            "help": "VURL Configuration MIME type",
+            "help": "VURL Configuration MIME type. Only used if body is not provided",
             "default": "application/json"
         },
         "mime-type": {
-          "help": "VURL response mime type"
+            "help": "VURL response mime type. Only used if body is not provided",
         }
     }
-
-    @classmethod
-    def read_config(cls, opts):
-        config_file = getattr(opts, 'config_file')
-        if config_file:
-            with open(config_file) as f:
-                return f.read()
-        return getattr(opts, 'config')
 
     def run(self, opts=None):
         if opts is None:
@@ -79,18 +77,22 @@ class CreateVurlCommand(CliCommand):
 
         base_url = getattr(opts, 'base_url')
         ruid = getattr(opts, 'ruid')
-        vurl = getattr(opts, 'vurl')
-        config = self.read_config(opts)
-        config_mime = getattr(opts, 'config_mime')
-        mime_type = getattr(opts, 'mime_type')
-        data = {
-            "vurl": vurl,
-            "config": config,
-            "config_mime": config_mime,
-            "mime_type": mime_type
-        }
+        body = getattr(opts, 'body')
+        if not body:
+            vurl = getattr(opts, 'vurl')
+            config = getattr(opts, 'config')
+            config_mime = getattr(opts, 'config_mime')
+            mime_type = getattr(opts, 'mime_type')
+
+            body = [{
+                "vurl": vurl,
+                "config": config,
+                "config_mime": config_mime,
+                "mime": mime_type
+            }]
+
         client = RaspApiClient(base_url)
-        response = client.create_asset_vurl(ruid, data)
+        response = client.create_asset_vurl(ruid, body)
         print(response)
         return response
 
