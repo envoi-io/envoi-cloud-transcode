@@ -55,6 +55,12 @@ class CreateJobCommand(HybrikApiCommand):
         },
         "payload-file": {
             "help": "A file containing the job definition",
+        "schema": {
+            "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
+                    'string. The default is "hybrik".',
+            "default": None
+
+        },
             "default": None
 
         },
@@ -99,9 +105,7 @@ class CreateJobCommand(HybrikApiCommand):
             opts = self.opts
         client = super().run(opts=opts)
         name = getattr(opts, "name")
-        # payload = getattr(opts, "payload")
-        payload = self.read_payload(opts)
-        schema = 'hybrik'
+        schema = getattr(opts, "name")
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")
         task_tags = getattr(opts, "task_tags")
