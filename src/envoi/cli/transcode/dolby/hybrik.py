@@ -59,8 +59,11 @@ class CreateJobCommand(HybrikApiCommand):
             "default": None
 
         },
+        "definitions": {
+            "help": "Global string replacements can be defined in this section. Anything in the Job JSON that is "
+                    "enclosed with double parentheses such as {{to_be_replaced}} will be replaced.",
+            "type": json_argument,
             "default": None
-
         },
         "expiration": {
             "help": "Expiration (in minutes) of the job. A completed job will expire and be deleted after ["
@@ -106,7 +109,7 @@ class CreateJobCommand(HybrikApiCommand):
         definitions = getattr(opts, "definitions")
 
         response = client.create_job(name, payload, schema, expiration, priority, task_tags,
-                                     task_retry_count, task_retry_delay_secs, user_tag)
+                                     task_retry_count, task_retry_delay_secs, user_tag, definitions)
         print(json.dumps(response))
 
 
