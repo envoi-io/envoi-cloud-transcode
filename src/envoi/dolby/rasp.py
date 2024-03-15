@@ -3,6 +3,7 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
+
 class RaspApiClient(HttpClient):
     base_url = "api.dolbyrasp.com"
 
@@ -21,3 +22,6 @@ class RaspApiClient(HttpClient):
         endpoint = f'asset/{ruid}/{file_path}'
         return self.get(endpoint)
 
+    def get_hybrik_player_config(self, data):
+        endpoint = "hybrik/player"
+        return self.post(endpoint, data)
