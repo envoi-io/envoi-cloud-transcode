@@ -1,6 +1,6 @@
 import json
 
-from envoi.cli import CliCommand
+from envoi.cli import CliCommand, json_argument
 from envoi.dolby.hybrik import HybrikApiClient
 
 COMMON_PARAMS = {
@@ -50,11 +50,9 @@ class CreateJobCommand(HybrikApiCommand):
         },
         "payload": {
             "help": "Job Definition. This must be a JSON object",
-            "type": json.loads,
+            "type": json_argument,  # json.loads,
             "default": None
         },
-        "payload-file": {
-            "help": "A file containing the job definition",
         "schema": {
             "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
                     'string. The default is "hybrik".',
@@ -91,15 +89,6 @@ class CreateJobCommand(HybrikApiCommand):
         }
     }
 
-    @classmethod
-    def read_payload(cls, opts):
-        if getattr(opts, "payload") is not None:
-            return json.loads(getattr(opts, "payload"))
-        if getattr(opts, "payload_file") is not None:
-            with open(getattr(opts, "payload_file")) as f:
-                return json.load(f)
-        return None
-
     def run(self, opts=None):
         if opts is None:
             opts = self.opts
@@ -112,6 +101,9 @@ class CreateJobCommand(HybrikApiCommand):
         user_tag = getattr(opts, "user_tag")
         task_retry_count = getattr(opts, "task_retry_count")
         task_retry_delay_secs = getattr(opts, "task_retry_delay_secs")
+
+        payload = getattr(opts, "payload")
+        definitions = getattr(opts, "definitions")
 
         response = client.create_job(name, payload, schema, expiration, priority, task_tags,
                                      task_retry_count, task_retry_delay_secs, user_tag)
