@@ -14,8 +14,8 @@ class RaspApiClient(HttpClient):
         return self.post(endpoint, data)
 
     def create_asset_vurl(self, ruid, data):
-        endpoint = f'api/asset/vurl?ruid={ruid}'
-        return self.put(endpoint, data)
+        endpoint = f'api/asset/vurl'
+        return self.put(endpoint, data, {"ruid": ruid})
 
     def get_asset_file(self, ruid, file_path):
         endpoint = f'asset/{ruid}/{file_path}'
