@@ -24,7 +24,7 @@ COMMON_PARAMS = {
 
 
 class HybrikApiCommand(CliCommand):
-    def run(self, opts=None):
+    def init_client(self, opts=None):
         opts = opts or self.opts
         client_args = {
             "oapi_key": getattr(opts, "oapi_key"),
@@ -151,8 +151,8 @@ class ListJobsCommand(HybrikApiCommand):
         if opts is None:
             opts = self.opts
 
-        client = super().run(opts)
-        response = client.list_jobs()
+        hybrik = self.init_client(opts=opts)
+        response = hybrik.list_jobs()
         print(json.dumps(response))
         return response
 
@@ -168,7 +168,8 @@ class GetJobResultsCommand(HybrikApiCommand):
 
     def run(self, opts=None):
         job_id = getattr(opts, "job-id")
-        response = super().run(opts).get_job_results(job_id)
+        hybrik = self.init_client(opts=opts)
+        response = hybrik.get_job_results(job_id)
         print(response)
 
 
