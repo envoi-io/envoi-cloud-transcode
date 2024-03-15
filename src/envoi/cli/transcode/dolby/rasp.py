@@ -1,4 +1,4 @@
-from envoi.cli import CliCommand
+from envoi.cli import CliCommand, json_argument
 from envoi.dolby.rasp import RaspApiClient
 
 
@@ -100,7 +100,6 @@ class CreateVurlCommand(CliCommand):
 class RaspCommand(CliCommand):
     DESCRIPTION = "Dolby Rasp Commands"
     SUBCOMMANDS = {
-        "create-ruid": CreateAssetCommand,
+        "create-asset": CreateAssetCommand,
         "create-vurl": CreateVurlCommand,
     }
-
