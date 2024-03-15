@@ -95,7 +95,8 @@ class CreateJobCommand(HybrikApiCommand):
     def run(self, opts=None):
         if opts is None:
             opts = self.opts
-        client = super().run(opts=opts)
+
+        client = self.init_client(opts=opts)
         name = getattr(opts, "name")
         schema = getattr(opts, "name")
         expiration = getattr(opts, "expiration")
