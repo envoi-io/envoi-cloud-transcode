@@ -51,6 +51,7 @@ class HybrikApiClient(HttpClient):
                    name,
                    payload,
                    schema,
+                   definitions,
                    expiration,
                    priority,
                    task_tags,
@@ -60,9 +61,12 @@ class HybrikApiClient(HttpClient):
         endpoint = "jobs"
         body = {
             "name": name,
-            "payload": payload,
-            "schema": schema,
+            "payload": payload
         }
+        if schema:
+            body["schema"] = schema
+        if definitions:
+            body["definitions"] = definitions
         if expiration:
             body["expiration"] = expiration
         if priority:
@@ -107,16 +111,6 @@ class HybrikApiClient(HttpClient):
         # https://docs.hybrik.com/api/v1/HybrikAPI.html?javascript#list-jobs
         endpoint = "jobs/info"
         query = {
-            # "ids": ids,
-            # "fields": fields,
-            # "filters": {
-            #     filters_field: filters_values
-            # },
-            # "order": order,
-            # "skip": skip,
-            # "sort_field": sort_field,
-            # "take": take
-            # }
         }
         if ids:
             query["ids"] = ids
