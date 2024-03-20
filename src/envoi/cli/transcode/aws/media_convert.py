@@ -80,6 +80,54 @@ class AwsMediaConvertCreateJobCommand(CliCommand):
         }
         media_convert = init_client_from_args(opts)
         response = media_convert.create_job(**create_job_args)
+class AwsMediaConvertCreateJobTemplate(CliCommand):
+    DESCRIPTION = "AWS MediaConvert Create Job Template"
+    PARAMS = {
+        'name': {
+            'help': 'The name of the template',
+            'required': True
+        },
+        'description': {
+            'help': 'The description of the template',
+            'default': None
+        },
+        'settings': {
+            'help': 'The settings for the template',
+            'type': json_argument,
+            'default': None
+        },
+        'tags': {
+            'help': 'The tags for the template',
+            'default': None
+        },
+        'category': {
+            'help': 'The category of the template',
+            'default': None
+        },
+        'queue': {
+            'help': 'The queue for the template',
+            'default': None
+        },
+        'priority': {
+            'help': 'The priority for the template',
+            'default': 0
+        }
+
+    }
+
+    def run(self, opts=None):
+        create_job_template_args = {
+            "name": getattr(opts, 'name'),
+            "description": getattr(opts, 'description'),
+            "settings": getattr(opts, 'settings'),
+            "tags": getattr(opts, 'tags'),
+            "category": getattr(opts, 'category'),
+            "queue": getattr(opts, 'queue'),
+            "priority": getattr(opts, 'priority')
+        }
+        media_convert = init_client_from_args(opts)
+        response = media_convert.create_job_template(**create_job_template_args)
+        print(response)
 
 
 class AwsMediaConvertListJobsCommand(CliCommand):
@@ -131,6 +179,7 @@ class AwsMediaConvertCommand(CliCommand):
     DESCRIPTION = "AWS MediaConvert Commands"
     SUBCOMMANDS = {
         'create-job': AwsMediaConvertCreateJobCommand,
+        'create-job-template': AwsMediaConvertCreateJobTemplate,
         'get-job': AwsMediaConvertGetJobCommand,
         'list-jobs': AwsMediaConvertListJobsCommand
     }

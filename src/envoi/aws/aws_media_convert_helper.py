@@ -69,6 +69,7 @@ class AwsMediaConvertHelper:
         return self.media_convert.create_job(**create_job_args)
 
     def create_template(self, name, description, settings, tags):
+    def create_job_template(self, name, description, settings, tags):
         """
         Create a template
 
