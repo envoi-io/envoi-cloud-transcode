@@ -68,7 +68,22 @@ class AwsMediaConvertHelper:
 
         return self.media_convert.create_job(**create_job_args)
 
-    def create_template(self, name, description, settings, tags):
+    def create_preset(self, name, description, settings, tags, category):
+        """
+        Create a preset
+
+        see https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/mediaconvert/client/create_preset.html
+
+        :param name:
+        :param description:
+        :param settings:
+        :param tags:
+        :param category:
+        :return:
+        """
+        return self.media_convert.create_preset(Name=name, Description=description, Settings=settings, Tags=tags,
+                                                Category=category)
+
     def create_job_template(self, name, description, settings, tags):
         """
         Create a template

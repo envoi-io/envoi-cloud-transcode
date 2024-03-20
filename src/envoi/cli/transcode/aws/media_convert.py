@@ -58,17 +58,6 @@ class AwsMediaConvertCreateJobCommand(CliCommand):
         },
     }
 
-    @classmethod
-    def get_settings(cls, opts):
-        settings = getattr(opts, 'settings')
-        settings_file = getattr(opts, 'settings_file')
-        if settings is not None:
-            return settings
-        elif settings_file is not None:
-            with open(settings_file, 'r') as f:
-                return f.read()
-        return None
-
     def run(self, opts=None):
         create_job_args = {
             "template": getattr(opts, 'template'),
@@ -80,6 +69,50 @@ class AwsMediaConvertCreateJobCommand(CliCommand):
         }
         media_convert = init_client_from_args(opts)
         response = media_convert.create_job(**create_job_args)
+        print(response)
+
+
+# CreatePreset
+class AwsMediaConvertCreatePreset(CliCommand):
+    DESCRIPTION = "AWS MediaConvert Create Preset"
+    PARAMS = {
+        'name': {
+            'help': 'The name of the preset',
+            'required': True
+        },
+        'description': {
+            'help': 'The description of the preset',
+            'default': None
+        },
+        'settings': {
+            'help': 'The settings for the preset',
+            'type': json_argument
+        },
+        'tags': {
+            'help': 'The tags for the preset',
+            'default': None
+        },
+        'category': {
+            'help': 'The category of the preset',
+            'default': None
+        }
+
+    }
+
+    def run(self, opts=None):
+        create_preset_args = {
+            "name": getattr(opts, 'name'),
+            "description": getattr(opts, 'description'),
+            "settings": getattr(opts, 'settings'),
+            "tags": getattr(opts, 'tags'),
+            "category": getattr(opts, 'category')
+        }
+        media_convert = init_client_from_args(opts)
+        response = media_convert.create_preset(**create_preset_args)
+        print(response)
+
+
+# CreateTemplate
 class AwsMediaConvertCreateJobTemplate(CliCommand):
     DESCRIPTION = "AWS MediaConvert Create Job Template"
     PARAMS = {
@@ -172,7 +205,7 @@ class AwsMediaConvertGetJobCommand(CliCommand):
 
         media_convert = init_client_from_args(opts)
         response = media_convert.get_job(id)
-        return response
+        print(response)
 
 
 class AwsMediaConvertCommand(CliCommand):
@@ -180,6 +213,7 @@ class AwsMediaConvertCommand(CliCommand):
     SUBCOMMANDS = {
         'create-job': AwsMediaConvertCreateJobCommand,
         'create-job-template': AwsMediaConvertCreateJobTemplate,
+        'create-preset': AwsMediaConvertCreatePreset,
         'get-job': AwsMediaConvertGetJobCommand,
         'list-jobs': AwsMediaConvertListJobsCommand
     }
