@@ -1,6 +1,7 @@
 import sys
 
 from envoi.cli import CliApp
+from envoi.cli.transcode.ateme import AtemeCommand
 from envoi.cli.transcode.aws import AwsCommand
 from envoi.cli.transcode.dolby import DolbyCommand
 # from envoi.cli.transcode.envoi import EnvoiCommand
@@ -22,6 +23,7 @@ class EnvoiTranscodeCli(CliApp):
         },
     }
     SUBCOMMANDS = {
+        'ateme': AtemeCommand,
         'aws': AwsCommand,
         'dolby': DolbyCommand,
         'envoi': None,  # EnvoiCommand,

@@ -1,10 +1,13 @@
 import argparse
 import datetime
+import re
 import uuid
 import json
 import logging
 import os
 import sys
+
+import requests
 
 LOG = logging.getLogger(__name__)
 
@@ -37,12 +40,12 @@ def json_argument(arg):
                 return json.load(f)
         else:
             raise argparse.ArgumentTypeError(f"File {file_path} does not exist")
-    # elif arg.startswith('http://') or arg.startswith('https://'):
-    #     response = requests.get(arg)
-    #     try:
-    #         return response.json()
-    #     except json.JSONDecodeError:
-    #         raise argparse.ArgumentTypeError(f"Invalid JSON from URL: {arg}")
+    elif re.match(r'^https?://', arg) is not None:
+        response = requests.get(arg)
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            raise argparse.ArgumentTypeError(f"Invalid JSON from URL: {arg}")
     else:
         try:
             return json.loads(arg)
@@ -192,8 +195,8 @@ class CliApp(CliCommand):
                 if opts.handler is not cls:
                     opts.handler(opts)
                 elif len(sys.argv) == 1:
-                        parser.print_help()
-                        return 1
+                    parser.print_help()
+                    return 1
             else:
                 parser.print_help()
                 return 1
