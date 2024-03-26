@@ -1,6 +1,6 @@
 # Envoi Video Transcoding SDK
 
-This project is a Python based command line utility CLI for the creating and managing video transcoding and quality assurance jobs using the AWS MediaConvert, Dolby Hybrik, Dolby Resource Agnostic Swarm Processing "RASP", and Ateme Titan API's. It provides methods and examples for job creation and job monitoring and interacting with each API.
+This project is a Python based command line utility CLI for the creating and managing video transcoding and quality assurance jobs using the AWS MediaConvert, Dolby Hybrik, Dolby Resource Agnostic Swarm Processing "RASP", and the Ateme Titan File API's. It provides methods and examples for job creation and job monitoring and interacting with each API.
 
 Envoi is a cloud platform that automates creating, managing, and distributing 24x7, live free ad-supported streaming television "FAST", Subscription or Pay-Per-View OTT (internet delivered) channels.
 
@@ -34,6 +34,20 @@ envoi_media_convert.py create-job --settings file://settings.json
 
 ```shell
 envoi_media_convert.py create-job --create-job-request-body file://./create-job-request-body.json
+```
+
+### Ateme Titan File - Create Job
+
+```text
+usage: envoi-transcode ateme create-job --no-verify-ssl --base-url BASE_API_URL --username $ATEME_USERNAME --password $ATEME_PASSWORD create-job --job-name $ATEME_JOB_NAME --job-def ateme-job.json --asset-name $ATEME_ASSET_NAME --asset-url $ATEME_ASSET_URL
+
+options:
+  -h, --help            show this help message and exit
+
+```
+
+```shell
+envoi-transcode create-job --no-verify-ssl --base-url BASE_API_URL --username $ATEME_USERNAME --password $ATEME_PASSWORD create-job --job-name $ATEME_JOB_NAME --job-def ateme-job.json --asset-name $ATEME_ASSET_NAME --asset-url $ATEME_ASSET_URL
 ```
 
 
