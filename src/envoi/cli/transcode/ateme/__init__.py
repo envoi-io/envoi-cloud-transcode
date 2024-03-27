@@ -107,6 +107,7 @@ class CreateTemplateCommand(CliCommand):
 class GetJobCommand(CliCommand):
     DESCRIPTION = "Get a job"
     PARAMS = {
+        **COMMON_PARAMS,
         "job-id": {
             'help': 'Job ID',
             'required': True
