@@ -71,7 +71,7 @@ class CreateJobCommand(CliCommand):
             opts = self.opts
         client = init_ateme_client(opts)
 
-        job_def = getattr(opts, 'job-def')
+        job_def = getattr(opts, 'job_def')
         job_name = getattr(opts, 'job_name')
         if job_name:
             job_def['name'] = job_name
@@ -102,7 +102,7 @@ class CreateTemplateCommand(CliCommand):
         if opts is None:
             opts = self.opts
         client = init_ateme_client(opts)
-        response = client.create_template(opts['template-def'])
+        response = client.create_template(getattr(opts, 'template_def'))
         print(response)
 
 
@@ -120,7 +120,7 @@ class GetJobCommand(CliCommand):
         if opts is None:
             opts = self.opts
         client = init_ateme_client(opts)
-        response = client.get_job(opts['job-id'])
+        response = client.get_job(getattr(opts, 'job_id'))
         print(response)
 
 
