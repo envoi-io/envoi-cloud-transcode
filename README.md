@@ -113,27 +113,39 @@ options:
 ### Dolby Hybrik - Create Job
 
 ```text
-usage: envoi-transcode hybrik create-job [-h] --settings SETTINGS [--job-template JOB_TEMPLATE] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
+usage: envoi-transcode dolby hybrik create-job [-h] [--api-url API_URL] [--oapi-key OAPI_KEY] [--oapi-secret OAPI_SECRET] [--auth-key AUTH_KEY] [--auth-secret AUTH_SECRET] [--name NAME] [--payload PAYLOAD]
+                                               [--schema SCHEMA] [--definitions DEFINITIONS] [--expiration EXPIRATION] [--priority PRIORITY] [--task-tags TASK_TAGS] [--user-tag USER_TAG]
+                                               [--task-retry-count TASK_RETRY_COUNT] [--task-retry-delay-secs TASK_RETRY_DELAY_SECS]
 
 options:
   -h, --help            show this help message and exit
-  --settings SETTINGS   JobSettings contains all the transcode settings for a job.
-  --job-template JOB_TEMPLATE
-                        Optional. When you create a job, you can either specify a job template or specify the transcoding settings individually.
-  --priority PRIORITY   Optional. Specify the relative priority for this job. In any given queue, the service begins processing the job with the highest value first. When more than one job has the same priority, the service begins processing the job that you submitted first. If you don't specify a priority, the service uses the default value 0.
-  --endpoint ENDPOINT   Optional. The URL of the Dolby Hybrik endpoint that you want to use.
-  --queue QUEUE         The name of the MediaConvert queue that you want to use for this job.
-  --role-arn ROLE_ARN   The Amazon Resource Name (ARN) for the IAM role that will be assumed when processing the job.
-  --job-tags TAGS           Optional. A list of tags to assign to the job. Tags are metadata that you assign to the job
+  --api-url API_URL     The URL of the Hybrik API (default: https://api-demo.hybrik.com/v1)
+  --oapi-key OAPI_KEY   Hybrik OAPI Key (default: None)
+  --oapi-secret OAPI_SECRET
+                        Hybrik OAPI Secret (default: None)
+  --auth-key AUTH_KEY   Hybrik Auth Key (default: None)
+  --auth-secret AUTH_SECRET
+                        Hybrik Auth Secret (default: None)
+  --name NAME           The visible name of the job (default: None)
+  --payload PAYLOAD     Job Definition. This must be a JSON object (default: None)
+  --schema SCHEMA       Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this string. The default is "hybrik". (default: None)
+  --definitions DEFINITIONS
+                        Global string replacements can be defined in this section. Anything in the Job JSON that is enclosed with double parentheses such as {{to_be_replaced}} will be replaced. (default: None)
+  --expiration EXPIRATION
+                        Expiration (in minutes) of the job. A completed job will expire and be deleted after [expiration] minutes. Default is 30 days. (default: None)
+  --priority PRIORITY   The priority of the job (default: 100)
+  --task-tags TASK_TAGS
+                        A list of tags to apply to the job (default: None)
+  --user-tag USER_TAG   A user tag to apply to the job (default: None)
+  --task-retry-count TASK_RETRY_COUNT
+                        The number of times to retry a task (default: None)
+  --task-retry-delay-secs TASK_RETRY_DELAY_SECS
+                        The number of seconds to wait before retrying a task (default: None)
 
 ```
 
 ```shell
-envoi-transcode hybrik create-job --settings file://settings.json
-```
-
-```shell
-envoi-transcode hybrik create-job --create-job-request-body file://./create-job-request-body.json
+envoi-transcode dolby hybrik create-job [--api-url API_URL] [--oapi-key OAPI_KEY] [--oapi-secret OAPI_SECRET] [--auth-key AUTH_KEY] [--auth-secret AUTH_SECRET] [--name NAME] [--payload PAYLOAD] [--schema SCHEMA] [--definitions DEFINITIONS] [--expiration EXPIRATION] [--priority PRIORITY] [--task-tags TASK_TAGS] [--user-tag USER_TAG] [--task-retry-count TASK_RETRY_COUNT] [--task-retry-delay-secs TASK_RETRY_DELAY_SECS]
 ```
 
 
@@ -141,25 +153,18 @@ envoi-transcode hybrik create-job --create-job-request-body file://./create-job-
 ### Dolby Resource Agnostic Swarm Processing API "RASP"  - Create Job
 
 ```text
-usage: envoi-transcode rasp create-job [-h] --settings SETTINGS [--vurl-redention-configuration VURL_CONFIG] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
+usage: envoi-transcode dolby rasp create-asset [-h] [--base-url BASE_URL] [--name NAME] [--url URL] [--mime-type MIME_TYPE]
 
 options:
   -h, --help            show this help message and exit
-  --settings SETTINGS   JobSettings contains all the transcode settings for a job.
-  --job-template JOB_TEMPLATE
-                        Optional. When you create a job, you can either specify a job template or specify the transcoding settings individually.
-  --priority PRIORITY   Optional. Specify the relative priority for this job. In any given queue, the service begins processing the job with the highest value first. When more than one job has the same priority, the service begins processing the job that you submitted first. If you don't specify a priority, the service uses the default value 0.
-  --endpoint ENDPOINT   Optional. The URL of the Dolby Hybrik endpoint that you want to use.
-  --queue QUEUE         The name of the MediaConvert queue that you want to use for this job.
-  --role-arn ROLE_ARN   The Amazon Resource Name (ARN) for the IAM role that will be assumed when processing the job.
-  --job-tags TAGS           Optional. A list of tags to assign to the job. Tags are metadata that you assign to the job
+  --base-url BASE_URL   Base URL of the RASP API (default: None)
+  --name NAME           Name of the asset (default: None)
+  --url URL             URL of the asset (default: None)
+  --mime-type MIME_TYPE
+                        MIME type of the asset (default: None)
 
 ```
 
 ```shell
-envoi-transcode rasp create-job --settings file://settings.json
-```
-
-```shell
-envoi-transcode rasp create-job --create-job-request-body file://./create-job-request-body.json
+envoi-transcode dolby rasp create-asset [--base-url BASE_URL] [--name NAME] [--url URL] [--mime-type MIME_TYPE]
 ```
