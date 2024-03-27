@@ -63,7 +63,7 @@ class AtemeTitanFileApiBaseClient:
             return None
 
     def request(self, method, endpoint, **kwargs):
-        headers = kwargs.get("headers", {})
+        headers = kwargs.pop("headers", {})
         path = f"{self.base_path}/{endpoint}"
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
@@ -82,12 +82,14 @@ class AtemeTitanFileApiClient(AtemeTitanFileApiBaseClient):
     def create_job(self, job_def, **kwargs):
         endpoint = "api/jobs"
         body = json.dumps(job_def)
-        return self.post(endpoint, body=body)
+        headers = {'Content-Type': 'application/json'}
+        return self.post(endpoint, body=body, headers=headers)
 
     def create_template(self, template_def, **kwargs):
         endpoint = "api/templates"
         body = json.dumps(template_def)
-        return self.post(endpoint, body=body)
+        headers = {'Content-Type': 'application/json'}
+        return self.post(endpoint, body=body, headers=headers)
 
     def get_job(self, job_id):
         endpoint = "api/jobs"
