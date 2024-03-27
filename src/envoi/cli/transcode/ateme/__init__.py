@@ -86,6 +86,7 @@ class CreateJobCommand(CliCommand):
         response = client.create_job(job_def)
         print(response)
 
+
 class CreateTemplateCommand(CliCommand):
     DESCRIPTION = "Create a template"
     PARAMS = {
@@ -103,6 +104,7 @@ class CreateTemplateCommand(CliCommand):
         client = init_ateme_client(opts)
         response = client.create_template(opts['template-def'])
         print(response)
+
 
 class GetJobCommand(CliCommand):
     DESCRIPTION = "Get a job"
@@ -149,6 +151,7 @@ class ListJobsCommand(CliCommand):
                                     getattr(opts, 'name'),
                                     getattr(opts, 'status'))
         print(response)
+
 
 class ListTemplatesCommand(CliCommand):
     DESCRIPTION = "List templates"
