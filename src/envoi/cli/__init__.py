@@ -1,13 +1,13 @@
 import argparse
 import datetime
+import http.client
 import re
+import urllib.parse
 import uuid
 import json
 import logging
 import os
 import sys
-
-import requests
 
 LOG = logging.getLogger(__name__)
 
@@ -41,11 +41,17 @@ def json_argument(arg):
         else:
             raise argparse.ArgumentTypeError(f"File {file_path} does not exist")
     elif re.match(r'^https?://', arg) is not None:
-        response = requests.get(arg)
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            raise argparse.ArgumentTypeError(f"Invalid JSON from URL: {arg}")
+        url = urllib.parse.urlparse(arg)
+        conn = http.client.HTTPSConnection(url.netloc)
+        conn.request("GET", url.path)
+        res = conn.getresponse()
+        res_data = res.read().decode()
+
+        if res_data:
+            try:
+                return json.loads(res_data)
+            except json.JSONDecodeError:
+                raise argparse.ArgumentTypeError(f"Invalid JSON from URL: {arg}")
     else:
         try:
             return json.loads(arg)
