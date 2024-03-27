@@ -39,10 +39,38 @@ envoi_media_convert.py create-job --create-job-request-body file://./create-job-
 ### Ateme Titan File - Create Job
 
 ```text
-usage: envoi-transcode ateme create-job --no-verify-ssl --base-url BASE_API_URL --username $ATEME_USERNAME --password $ATEME_PASSWORD create-job --job-name $ATEME_JOB_NAME --job-def ateme-job.json --asset-name $ATEME_ASSET_NAME --asset-url $ATEME_ASSET_URL
+envoi-transcode ateme [-h] {create-job,get-job,list-jobs,list-templates} ...
+
+positional arguments:
+  {create-job,get-job,list-jobs,list-templates}
+    create-job          Create a job
+    get-job             Get a job
+    list-jobs           List jobs
+    list-templates      List templates
 
 options:
   -h, --help            show this help message and exit
+
+
+usage: envoi-transcode ateme create-job --no-verify-ssl --base-url BASE_API_URL --username $ATEME_USERNAME --password $ATEME_PASSWORD create-job --job-name $ATEME_JOB_NAME --job-def ateme-job.json --asset-name $ATEME_ASSET_NAME --asset-url $ATEME_ASSET_URL
+
+
+usage: envoi-transcode ateme create-job [-h] --base-url BASE_URL [--username USERNAME] [--password PASSWORD] [--token TOKEN] [----no-verify-ssl] --job-def JOB_DEF [--job-name JOB_NAME]
+                                        [--input-asset-name INPUT_ASSET_NAME] [--input-asset-url INPUT_ASSET_URL]
+
+options:
+  -h, --help            show this help message and exit
+  --base-url BASE_URL   Ateme base URL (default: None)
+  --username USERNAME   Ateme user (default: None)
+  --password PASSWORD   Ateme password (default: None)
+  --token TOKEN         Ateme token (default: None)
+  ----no-verify-ssl     Turns off SSL Certificate Verification (default: True)
+  --job-def JOB_DEF     The Job Definition (default: None)
+  --job-name JOB_NAME   Job Name (default: None)
+  --input-asset-name INPUT_ASSET_NAME
+                        Asset Name (default: asset_1)
+  --input-asset-url INPUT_ASSET_URL
+                        Asset URL (default: None)
 
 ```
 
