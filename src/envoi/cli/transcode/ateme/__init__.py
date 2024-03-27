@@ -84,12 +84,7 @@ class CreateJobCommand(CliCommand):
             job_def['assets'] = assets
 
         response = client.create_job(job_def)
-        try:
-            response_as_string = json.dumps(response)
-        except TypeError:
-            response_as_string = response
-        print(response_as_string)
-
+        print(response)
 
 class CreateTemplateCommand(CliCommand):
     DESCRIPTION = "Create a template"
@@ -107,12 +102,7 @@ class CreateTemplateCommand(CliCommand):
             opts = self.opts
         client = init_ateme_client(opts)
         response = client.create_template(opts['template-def'])
-        try:
-            response_as_string = json.dumps(response)
-        except TypeError:
-            response_as_string = response
-        print(response_as_string)
-
+        print(response)
 
 class GetJobCommand(CliCommand):
     DESCRIPTION = "Get a job"
@@ -128,11 +118,7 @@ class GetJobCommand(CliCommand):
             opts = self.opts
         client = init_ateme_client(opts)
         response = client.get_job(opts['job-id'])
-        try:
-            response_as_string = json.dumps(response)
-        except TypeError:
-            response_as_string = response
-        print(response_as_string)
+        print(response)
 
 
 class ListJobsCommand(CliCommand):
@@ -161,12 +147,7 @@ class ListJobsCommand(CliCommand):
                                     getattr(opts, 'limit'),
                                     getattr(opts, 'name'),
                                     getattr(opts, 'status'))
-        try:
-            response_as_string = json.dumps(response)
-        except TypeError:
-            response_as_string = response
-        print(response_as_string)
-
+        print(response)
 
 class ListTemplatesCommand(CliCommand):
     DESCRIPTION = "List templates"
@@ -179,11 +160,7 @@ class ListTemplatesCommand(CliCommand):
             opts = self.opts
         client = init_ateme_client(opts)
         response = client.list_templates()
-        try:
-            response_as_string = json.dumps(response)
-        except TypeError:
-            response_as_string = response
-        print(response_as_string)
+        print(response)
 
 
 class AtemeCommand(CliCommand):
