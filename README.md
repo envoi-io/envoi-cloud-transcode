@@ -9,34 +9,31 @@ Envoi is a cloud platform that automates creating, managing, and distributing 24
 ### AWS MediaConvert - Create Job
 
 ```text
-usage: envoi_media_convert.py create-job [-h] --settings SETTINGS [--job-template JOB_TEMPLATE] [--priority PRIORITY] [--endpoint ENDPOINT] [--queue QUEUE] [--role-arn ROLE_ARN] [--simulate-reserve-queue] [--status-update-interval STATUS_UPDATE_INTERVAL] [--tags TAGS] [--user-metadata USER_METADATA]
+./envoi-transcode aws media-convert --help
+usage: envoi-transcode aws media-convert [-h] {create-job,create-job-template,create-preset,get-job,list-jobs} ...
+
+positional arguments:
+  {create-job,create-job-template,create-preset,get-job,list-jobs}
+    create-job          AWS MediaConvert Create Job
+    create-job-template
+                        AWS MediaConvert Create Job Template
+    create-preset       AWS MediaConvert Create Preset
+    get-job             AWS MediaConvert Get Job
+    list-jobs           AWS MediaConvert List Jobs
 
 options:
   -h, --help            show this help message and exit
-  --settings SETTINGS   JobSettings contains all the transcode settings for a job.
-  --job-template JOB_TEMPLATE
-                        Optional. When you create a job, you can either specify a job template or specify the transcoding settings individually.
-  --priority PRIORITY   Optional. Specify the relative priority for this job. In any given queue, the service begins processing the job with the highest value first. When more than one job has the same priority, the service begins processing the job that you submitted first. If you don't specify a priority, the service uses the default value 0.
-  --endpoint ENDPOINT   Optional. The URL of the MediaConvert endpoint that you want to use.
-  --queue QUEUE         The name of the MediaConvert queue that you want to use for this job.
-  --role-arn ROLE_ARN   The Amazon Resource Name (ARN) for the IAM role that will be assumed when processing the job.
-  --simulate-reserve-queue
-  --status-update-interval STATUS_UPDATE_INTERVAL
-                        Optional. The interval, in seconds, between each status update.
-  --tags TAGS           Optional. A list of tags to assign to the job. Tags are metadata that you assign to the job
-  --user-metadata USER_METADATA
-                        Optional. A list of key-value pairs, in the form of name-value pairs, to associate with the job.
 ```
 
 ```shell
-envoi_media_convert.py create-job --settings file://settings.json
+envoi-transcode aws media-convert create-job --settings file://settings.json
 ```
 
 ```shell
-envoi_media_convert.py create-job --create-job-request-body file://./create-job-request-body.json
+envoi-transcode aws media-convert create-job --create-job-request-body file://./create-job-request-body.json
 ```
 
-### Ateme Titan File - List Jobs
+### Ateme TITAN File - List Jobs
 
 ```text
 
@@ -61,7 +58,7 @@ options:
 ```
 
 
-### Ateme Titan File - Get Job
+### Ateme TITAN File - Get Job
 
 ```text
 
@@ -82,7 +79,7 @@ options:
 ./envoi-transcode ateme get-job --no-verify-ssl --base-url $ATEME_BASE_URL --username $ATEME_USERNAME --password $ATEME_PASSWORD --job-id $ATEME_JOB_ID_USERNAME
 ```
 
-### Ateme Titan File - Create Job
+### Ateme TITAN File - Create Job
 
 ```text
 
@@ -113,7 +110,7 @@ options:
 ```
 
 
-### Dolby Hybrick - Create Job
+### Dolby Hybrik - Create Job
 
 ```text
 usage: envoi_transcode.py hybrik create-job [-h] --settings SETTINGS [--job-template JOB_TEMPLATE] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
