@@ -113,7 +113,7 @@ options:
 ### Dolby Hybrik - Create Job
 
 ```text
-usage: envoi_transcode.py hybrik create-job [-h] --settings SETTINGS [--job-template JOB_TEMPLATE] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
+usage: envoi-transcode hybrik create-job [-h] --settings SETTINGS [--job-template JOB_TEMPLATE] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
 
 options:
   -h, --help            show this help message and exit
@@ -129,11 +129,11 @@ options:
 ```
 
 ```shell
-envoi_transcode.py hybrik create-job --settings file://settings.json
+envoi-transcode hybrik create-job --settings file://settings.json
 ```
 
 ```shell
-envoi_transcode.py hybrik create-job --create-job-request-body file://./create-job-request-body.json
+envoi-transcode hybrik create-job --create-job-request-body file://./create-job-request-body.json
 ```
 
 
@@ -141,7 +141,7 @@ envoi_transcode.py hybrik create-job --create-job-request-body file://./create-j
 ### Dolby Resource Agnostic Swarm Processing API "RASP"  - Create Job
 
 ```text
-usage: envoi_transcode.py rasp create-job [-h] --settings SETTINGS [--vurl-redention-configuration VURL_CONFIG] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
+usage: envoi-transcode rasp create-job [-h] --settings SETTINGS [--vurl-redention-configuration VURL_CONFIG] [--priority PRIORITY] [--endpoint ENDPOINT] [--job-tags QUEUE] [--role-arn ROLE_ARN] 
 
 options:
   -h, --help            show this help message and exit
@@ -157,9 +157,9 @@ options:
 ```
 
 ```shell
-envoi_transcode.py rasp create-job --settings file://settings.json
+envoi-transcode rasp create-job --settings file://settings.json
 ```
 
 ```shell
-envoi_transcode.py rasp create-job --create-job-request-body file://./create-job-request-body.json
+envoi-transcode rasp create-job --create-job-request-body file://./create-job-request-body.json
 ```
