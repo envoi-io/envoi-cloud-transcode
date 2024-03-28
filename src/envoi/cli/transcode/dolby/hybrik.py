@@ -56,7 +56,7 @@ class CreateJobCommand(HybrikApiCommand):
         "schema": {
             "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
                     'string. The default is "hybrik".',
-            "default": None
+            "default": "hybrik"
 
         },
         "definitions": {
@@ -98,7 +98,7 @@ class CreateJobCommand(HybrikApiCommand):
 
         client = self.init_client(opts=opts)
         name = getattr(opts, "name")
-        schema = getattr(opts, "name")
+        schema = getattr(opts, "schema")
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")
         task_tags = getattr(opts, "task_tags")
@@ -109,8 +109,16 @@ class CreateJobCommand(HybrikApiCommand):
         payload = getattr(opts, "payload")
         definitions = getattr(opts, "definitions")
 
-        response = client.create_job(name, payload, schema, expiration, priority, task_tags,
-                                     task_retry_count, task_retry_delay_secs, user_tag, definitions)
+        response = client.create_job(name=name,
+                                     payload=payload,
+                                     schema=schema,
+                                     expiration=expiration,
+                                     priority=priority,
+                                     task_tags=task_tags,
+                                     task_retry_count=task_retry_count,
+                                     task_retry_delay_secs=task_retry_delay_secs,
+                                     user_tag=user_tag,
+                                     definitions=definitions)
         print(json.dumps(response))
 
 
@@ -162,12 +170,15 @@ class GetJobResultsCommand(HybrikApiCommand):
     PARAMS = {
         **COMMON_PARAMS,
         "job-id": {
-            "help": "Job ID"
+            "help": "Job ID",
+            "required": True
         }
     }
 
     def run(self, opts=None):
-        job_id = getattr(opts, "job-id")
+        if opts is None:
+            opts = self.opts
+        job_id = getattr(opts, "job_id")
         hybrik = self.init_client(opts=opts)
         response = hybrik.get_job_results(job_id)
         print(response)
