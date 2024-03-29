@@ -45,8 +45,8 @@ class CreateJobCommand(HybrikApiCommand):
     PARAMS = {
         **COMMON_PARAMS,
         "name": {
-            "help": "The visible name of the job",
-            "default": None
+            "help": "A name for the job. This will be displayed in the Job window. It does not have to be unique, "
+                    "but it helps to find jobs when they are given searchable names."
         },
         "payload": {
             "help": "Job Definition. This must be a JSON object",
@@ -65,8 +65,8 @@ class CreateJobCommand(HybrikApiCommand):
             "default": None
         },
         "expiration": {
-            "help": "Expiration (in minutes) of the job. A completed job will expire and be deleted after ["
-                    "expiration] minutes. Default is 30 days.",
+            "help": "Expiration (in minutes) of the job. A completed job will expire and be deleted after "
+                    "[expiration] minutes. Default is 30 days.",
             "default": None
         },
         "priority": {
@@ -79,7 +79,9 @@ class CreateJobCommand(HybrikApiCommand):
         #     "type": lambda s: [s.split(',')]
         # },
         "user-tag": {
-            "help": "A user tag to apply to the job",
+            "help": "The purpose of the user_tag is to provide a machine-trackable, user-specified, identifier. For a "
+                    "human readable identifier, please use the name field of a job. Hybrik will not verify the "
+                    "uniqueness of this identifier. length: 0..192",
             "default": None
         },
         "task-retry-count": {
