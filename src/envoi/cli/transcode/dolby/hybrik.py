@@ -50,8 +50,7 @@ class CreateJobCommand(HybrikApiCommand):
         },
         "payload": {
             "help": "Job Definition. This must be a JSON object",
-            "type": json_argument,  # json.loads,
-            "default": None
+            "type": json_argument
         },
         # "schema": {
         #    "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
@@ -71,13 +70,14 @@ class CreateJobCommand(HybrikApiCommand):
             "default": None
         },
         "priority": {
-            "help": "The priority of the job",
+            "help": "The priority of a job (1 = lowest, 254 = highest)",
             "default": 100
         },
-        "task-tags": {
-            "help": "A list of tags to apply to the job",
-            "default": None
-        },
+        # "task-tags": {
+        #     "help": "A list of tags to apply to the job",
+        #     "default": "",
+        #     "type": lambda s: [s.split(',')]
+        # },
         "user-tag": {
             "help": "A user tag to apply to the job",
             "default": None
@@ -101,7 +101,7 @@ class CreateJobCommand(HybrikApiCommand):
         # schema = getattr(opts, "schema")
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")
-        task_tags = getattr(opts, "task_tags")
+        # task_tags = getattr(opts, "task_tags")
         user_tag = getattr(opts, "user_tag")
         task_retry_count = getattr(opts, "task_retry_count")
         task_retry_delay_secs = getattr(opts, "task_retry_delay_secs")
@@ -114,7 +114,7 @@ class CreateJobCommand(HybrikApiCommand):
                                      # schema=schema,
                                      expiration=expiration,
                                      priority=priority,
-                                     task_tags=task_tags,
+                                     # task_tags=task_tags,
                                      task_retry_count=task_retry_count,
                                      task_retry_delay_secs=task_retry_delay_secs,
                                      user_tag=user_tag,
