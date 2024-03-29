@@ -80,7 +80,7 @@ class HybrikApiClient(HttpClient):
         if task_retry_count:
             task_retry["count"] = task_retry_count
         if task_retry_delay_secs:
-            task_retry["delay_secs"] = task_retry_delay_secs
+            task_retry["delay_sec"] = task_retry_delay_secs
         body["task_retry"] = task_retry
 
         return self.call_api("post", endpoint, body=body)
