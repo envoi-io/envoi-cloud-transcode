@@ -45,7 +45,7 @@ options:
   --username USERNAME  Ateme user (default: None)
   --password PASSWORD  Ateme password (default: None)
   --token TOKEN        Ateme token (default: None)
-  ----no-verify-ssl    Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl    Turns off SSL Certificate Verification (default: True)
   --offset OFFSET      Offset (default: None)
   --limit LIMIT        Limit (default: None)
   --name NAME          Name (default: None)
@@ -70,7 +70,7 @@ options:
   --username USERNAME  Ateme user (default: None)
   --password PASSWORD  Ateme password (default: None)
   --token TOKEN        Ateme token (default: None)
-  ----no-verify-ssl    Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl    Turns off SSL Certificate Verification (default: True)
   --job-id JOB_ID      Job ID (default: None)
 
 ```
@@ -95,7 +95,7 @@ options:
   --username USERNAME   Ateme user (default: None)
   --password PASSWORD   Ateme password (default: None)
   --token TOKEN         Ateme token (default: None)
-  ----no-verify-ssl     Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl     Turns off SSL Certificate Verification (default: True)
   --job-def JOB_DEF     The Job Definition (default: None)
   --job-name JOB_NAME   Job Name (default: None)
   --input-asset-name INPUT_ASSET_NAME
