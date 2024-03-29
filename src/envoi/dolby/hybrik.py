@@ -50,14 +50,14 @@ class HybrikApiClient(HttpClient):
     def create_job(self,
                    name,
                    payload,
-                   schema,
-                   definitions,
-                   expiration,
-                   priority,
-                   task_tags,
-                   task_retry_count,
-                   task_retry_delay_secs,
-                   user_tag,):
+                   schema=None,
+                   definitions=None,
+                   expiration=None,
+                   priority=None,
+                   task_tags=None,
+                   task_retry_count=None,
+                   task_retry_delay_secs=None,
+                   user_tag=None):
         endpoint = "jobs"
         body = {
             "name": name,
