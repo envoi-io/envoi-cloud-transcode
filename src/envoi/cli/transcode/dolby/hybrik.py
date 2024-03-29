@@ -9,10 +9,12 @@ COMMON_PARAMS = {
         "default": "https://api-demo.hybrik.com/v1"
     },
     "oapi-key": {
-        "help": "Hybrik OAPI Key"
+        "help": "Hybrik OAPI Key",
+        "required": True
     },
     "oapi-secret": {
-        "help": "Hybrik OAPI Secret"
+        "help": "Hybrik OAPI Secret",
+        "required": True
     },
     "auth-key": {
         "help": "Hybrik Auth Key"
@@ -46,11 +48,13 @@ class CreateJobCommand(HybrikApiCommand):
         **COMMON_PARAMS,
         "name": {
             "help": "A name for the job. This will be displayed in the Job window. It does not have to be unique, "
-                    "but it helps to find jobs when they are given searchable names."
+                    "but it helps to find jobs when they are given searchable names.",
+            "required": True
         },
         "payload": {
             "help": "Job Definition. This must be a JSON object",
-            "type": json_argument
+            "type": json_argument,
+            "required": True
         },
         # "schema": {
         #    "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
