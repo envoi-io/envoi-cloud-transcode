@@ -1,6 +1,6 @@
 # Envoi Media Transcoding SDK
 
-This project is a Python based command line utility CLI for the creating and managing video transcoding and quality assurance jobs using the AWS MediaConvert, Dolby Hybrik Media Cloud, Dolby Resource Agnostic Swarm Processing "RASP", and the Ateme TITAN File API's. It provides methods and examples for job creation and job monitoring and interacting with each API.
+This project is a Python based command line utility ("CLI") for the creating and managing video transcoding and quality assurance jobs using the AWS MediaConvert, Dolby Hybrik Media Cloud, Dolby Resource Agnostic Swarm Processing "RASP", and Ateme TITAN File API's. It provides methods and examples for job creation and job monitoring and interacting with each API.
 
 Envoi is a cloud platform that automates creating, managing, and distributing 24x7, live free ad-supported streaming television "FAST", Subscription or Pay-Per-View OTT (internet delivered) channels.
 
@@ -45,7 +45,7 @@ options:
   --username USERNAME  Ateme user (default: None)
   --password PASSWORD  Ateme password (default: None)
   --token TOKEN        Ateme token (default: None)
-  ----no-verify-ssl    Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl    Turns off SSL Certificate Verification (default: True)
   --offset OFFSET      Offset (default: None)
   --limit LIMIT        Limit (default: None)
   --name NAME          Name (default: None)
@@ -70,7 +70,7 @@ options:
   --username USERNAME  Ateme user (default: None)
   --password PASSWORD  Ateme password (default: None)
   --token TOKEN        Ateme token (default: None)
-  ----no-verify-ssl    Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl    Turns off SSL Certificate Verification (default: True)
   --job-id JOB_ID      Job ID (default: None)
 
 ```
@@ -95,7 +95,7 @@ options:
   --username USERNAME   Ateme user (default: None)
   --password PASSWORD   Ateme password (default: None)
   --token TOKEN         Ateme token (default: None)
-  ----no-verify-ssl     Turns off SSL Certificate Verification (default: True)
+  --no-verify-ssl     Turns off SSL Certificate Verification (default: True)
   --job-def JOB_DEF     The Job Definition (default: None)
   --job-name JOB_NAME   Job Name (default: None)
   --input-asset-name INPUT_ASSET_NAME
