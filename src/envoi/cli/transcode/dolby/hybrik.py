@@ -53,12 +53,12 @@ class CreateJobCommand(HybrikApiCommand):
             "type": json_argument,  # json.loads,
             "default": None
         },
-        "schema": {
-            "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
-                    'string. The default is "hybrik".',
-            "default": "hybrik"
-
-        },
+        # "schema": {
+        #    "help": 'Optional. Hybrik will be supporting some third-party job schemas, which can be specified in this '
+        #            'string. The default is "hybrik".',
+        #    "default": "hybrik"
+        #
+        # },
         "definitions": {
             "help": "Global string replacements can be defined in this section. Anything in the Job JSON that is "
                     "enclosed with double parentheses such as {{to_be_replaced}} will be replaced.",
@@ -98,7 +98,7 @@ class CreateJobCommand(HybrikApiCommand):
 
         client = self.init_client(opts=opts)
         name = getattr(opts, "name")
-        schema = getattr(opts, "schema")
+        # schema = getattr(opts, "schema")
         expiration = getattr(opts, "expiration")
         priority = getattr(opts, "priority")
         task_tags = getattr(opts, "task_tags")
@@ -111,7 +111,7 @@ class CreateJobCommand(HybrikApiCommand):
 
         response = client.create_job(name=name,
                                      payload=payload,
-                                     schema=schema,
+                                     # schema=schema,
                                      expiration=expiration,
                                      priority=priority,
                                      task_tags=task_tags,
