@@ -4,13 +4,18 @@ FROM amazonlinux:2
 # Define build argument for the Python script URL
 ARG WORKER_SCRIPT_URL
 
-# 1. Install EPEL and all libraries
+# 1. Install EPEL and all libraries required for audiowaveform and ImageMagick
 RUN amazon-linux-extras install epel -y && \
     yum update -y && \
     yum install -y \
     ImageMagick \
     python3 \
     python3-pip \
+    python3-devel \
+    gcc \
+    gcc-c++ \
+    make \
+    cmake \
     wget \
     tar \
     xz \
@@ -24,8 +29,7 @@ RUN amazon-linux-extras install epel -y && \
     boost-system && \
     yum clean all
 
-# 2. Create the Symbolic Link for ImageMagick
-# This ensures that 'magick' points to the 'convert' tool
+# 2. Create the Symbolic Link for ImageMagick (magick -> convert)
 RUN ln -s /usr/bin/convert /usr/bin/magick
 
 # 3. Install audiowaveform via RPM
@@ -42,25 +46,28 @@ RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-stati
     chmod +x /usr/bin/ffmpeg /usr/bin/ffprobe && \
     rm -rf ffmpeg-*-amd64-static*
 
-# 5. Install Python AWS SDK
-RUN pip3 install --no-cache-dir boto3
+# 5. Install Python AWS SDK and Lambda Runtime Interface Client
+# awslambdaric is required for the container to talk to the Lambda service
+RUN pip3 install --no-cache-dir boto3 awslambdaric
 
-# 6. Final Verification (Testing as Root)
-RUN ffmpeg -version && \
-    audiowaveform --version && \
-    magick -version
-
-# 7. Setup Workspace and Script
-RUN useradd -m appuser
-WORKDIR /app
+# 6. Setup Workspace and Script
+WORKDIR /var/task
 ENV PATH="/usr/bin:/usr/local/bin:${PATH}"
 
+# Pull script from URL
 RUN if [ -z "$WORKER_SCRIPT_URL" ]; then \
         echo "ERROR: WORKER_SCRIPT_URL build argument is missing." && exit 1; \
     fi && \
     wget -qO worker.py "$WORKER_SCRIPT_URL" && \
-    chown appuser:appuser worker.py && \
     chmod +x worker.py
 
-USER appuser
-CMD ["python3", "worker.py"]
+# 7. Final Verification
+RUN ffmpeg -version && audiowaveform --version && magick -version
+
+# 8. Set Entrypoint for Lambda
+# Lambda uses the Runtime Interface Client to trigger your 'handler' function
+ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
+
+# This points to the function inside worker.py named 'handler'
+# Example: def handler(event, context): ...
+CMD [ "worker.handler" ]
