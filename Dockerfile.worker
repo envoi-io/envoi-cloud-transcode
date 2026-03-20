@@ -27,9 +27,6 @@ RUN amazon-linux-extras install epel -y && \
     boost-system && \
     yum clean all
 
-# Create 'magick' alias for ImageMagick 7 compatibility
-RUN ln -s /usr/bin/convert /usr/bin/magick
-
 # Install static FFmpeg
 RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
     tar -xJf ffmpeg-release-amd64-static.tar.xz && \
@@ -49,6 +46,5 @@ RUN wget -q https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/ref
 # Configure the Lambda Runtime Interface Client
 ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
 
-# Update CMD to reference the actual filename 'generate_sprite_v2' 
-# followed by the function name 'handler'
+# Points to 'generate_sprite_v2.py' and the function 'handler'
 CMD [ "generate_sprite_v2.handler" ]
