@@ -1,0 +1,30 @@
+BUILD DOCKER CONTAINER:
+docker build \
+  --platform linux/amd64 \
+  -f ~/Downloads/Dockerfile.worker \
+  -t media-worker:latest \
+  --build-arg WORKER_SCRIPT_URL="https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/generate_sprite_v2.py" \
+  .
+
+
+
+AUDIO WAVEFORM:
+
+docker run --rm -v "/Users/nicholasstokes/Downloads":/data media-worker:latest \
+  /bin/bash -c "ffmpeg -i /data/HAITIAN_JACK_SIZZLE_032118_6000K.mp4 -map a:0 -f wav - | audiowaveform --input-format wav --output-format dat --zoom 128 --bits 8 --split-channels > /data/HAITIAN_JACK_SIZZLE_032118_6000K.dat"
+
+
+
+IMAGE SPRITES:
+docker run --rm \
+  -v "/Users/nicholasstokes/Downloads":/data \
+  -w /data \
+  media-worker:latest \
+  python3 /app/worker.py \
+  /data/HAITIAN_JACK_SIZZLE_032118_6000K.mp4 \
+  -n 24 \
+  -d 1 \
+  -W 240 \
+  -i 120 \
+  -om /data/HAITIAN_JACK_SIZZLE_032118_6000K.json \
+  -os /data/HAITIAN_JACK_SIZZLE_032118_6000K.png
