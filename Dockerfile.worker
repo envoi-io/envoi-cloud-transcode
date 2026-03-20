@@ -1,10 +1,7 @@
-# Base Image: Amazon Linux 2
+# Use ECR Public to avoid Docker Hub rate limits
 FROM public.ecr.aws/amazonlinux/amazonlinux:2
 
-# Define build argument for the Python script URL
-ARG WORKER_SCRIPT_URL
-
-# 1. Install EPEL and all libraries required for audiowaveform and ImageMagick
+# Install system dependencies
 RUN amazon-linux-extras install epel -y && \
     yum update -y && \
     yum install -y \
@@ -17,6 +14,7 @@ RUN amazon-linux-extras install epel -y && \
     make \
     cmake \
     wget \
+    curl \
     tar \
     xz \
     libmad \
@@ -29,45 +27,28 @@ RUN amazon-linux-extras install epel -y && \
     boost-system && \
     yum clean all
 
-# 2. Create the Symbolic Link for ImageMagick (magick -> convert)
+# Create 'magick' alias (standard for ImageMagick 7 compatibility)
 RUN ln -s /usr/bin/convert /usr/bin/magick
 
-# 3. Install audiowaveform via RPM
-RUN wget -q https://codeberg.org/chrisn/audiowaveform/releases/download/1.10.1/audiowaveform-1.10.1-1.amzn2.x86_64.rpm && \
-    yum localinstall -y audiowaveform-1.10.1-1.amzn2.x86_64.rpm && \
-    rm audiowaveform-1.10.1-1.amzn2.x86_64.rpm && \
-    ldconfig
-
-# 4. Install Static FFmpeg & FFprobe
+# Install static FFmpeg
 RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
     tar -xJf ffmpeg-release-amd64-static.tar.xz && \
     cp ffmpeg-*-amd64-static/ffmpeg /usr/bin/ffmpeg && \
     cp ffmpeg-*-amd64-static/ffprobe /usr/bin/ffprobe && \
-    chmod +x /usr/bin/ffmpeg /usr/bin/ffprobe && \
     rm -rf ffmpeg-*-amd64-static*
 
-# 5. Install Python AWS SDK and Lambda Runtime Interface Client
-# awslambdaric is required for the container to talk to the Lambda service
+# Install Lambda Runtime Interface Client and Boto3
 RUN pip3 install --no-cache-dir boto3 awslambdaric
 
-# 6. Setup Workspace and Script
+# Set working directory to Lambda's default
 WORKDIR /var/task
-ENV PATH="/usr/bin:/usr/local/bin:${PATH}"
 
-# Pull script from URL
-RUN if [ -z "$WORKER_SCRIPT_URL" ]; then \
-        echo "ERROR: WORKER_SCRIPT_URL build argument is missing." && exit 1; \
-    fi && \
-    wget -qO worker.py "$WORKER_SCRIPT_URL" && \
-    chmod +x worker.py
+# Download your script and rename it to worker.py
+# This ensures that "worker.handler" can find the file.
+RUN wget -qO worker.py https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/generate_sprite_v2.py
 
-# 7. Final Verification
-RUN ffmpeg -version && audiowaveform --version && magick -version
-
-# 8. Set Entrypoint for Lambda
-# Lambda uses the Runtime Interface Client to trigger your 'handler' function
+# Configure the Lambda Runtime Interface Client
 ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
 
-# This points to the function inside worker.py named 'handler'
-# Example: def handler(event, context): ...
+# This refers to the file 'worker.py' and the function 'handler'
 CMD [ "worker.handler" ]
