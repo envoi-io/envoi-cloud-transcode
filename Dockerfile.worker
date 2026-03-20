@@ -27,7 +27,7 @@ RUN amazon-linux-extras install epel -y && \
     boost-system && \
     yum clean all
 
-# Create 'magick' alias (standard for ImageMagick 7 compatibility)
+# Create 'magick' alias for ImageMagick 7 compatibility
 RUN ln -s /usr/bin/convert /usr/bin/magick
 
 # Install static FFmpeg
@@ -40,15 +40,15 @@ RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-stati
 # Install Lambda Runtime Interface Client and Boto3
 RUN pip3 install --no-cache-dir boto3 awslambdaric
 
-# Set working directory to Lambda's default
+# Set working directory
 WORKDIR /var/task
 
-# Download your script and rename it to worker.py
-# This ensures that "worker.handler" can find the file.
-RUN wget -qO worker.py https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/generate_sprite_v2.py
+# Download your script using its actual name
+RUN wget -q https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/generate_sprite_v2.py
 
 # Configure the Lambda Runtime Interface Client
 ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
 
-# This refers to the file 'worker.py' and the function 'handler'
-CMD [ "worker.handler" ]
+# Update CMD to reference the actual filename 'generate_sprite_v2' 
+# followed by the function name 'handler'
+CMD [ "generate_sprite_v2.handler" ]
