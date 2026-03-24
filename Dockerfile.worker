@@ -4,12 +4,13 @@ FROM public.ecr.aws/amazonlinux/amazonlinux:2
 # Define build argument for the Python script URL
 ARG WORKER_SCRIPT_URL
 
-# 1. Install EPEL and all libraries required for audiowaveform and ImageMagick
+# 1. Install EPEL and all libraries required for audiowaveform, ImageMagick, and ExifTool
 RUN amazon-linux-extras install epel -y && \
     yum update -y && \
     yum install -y \
     ImageMagick \
-	mediainfo \
+    mediainfo \
+    perl-Image-ExifTool \
     python3 \
     python3-pip \
     python3-devel \
@@ -48,7 +49,6 @@ RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-stati
     rm -rf ffmpeg-*-amd64-static*
 
 # 5. Install Python AWS SDK and Lambda Runtime Interface Client
-# awslambdaric is required for the container to talk to the Lambda service
 RUN pip3 install --no-cache-dir boto3 awslambdaric
 
 # 6. Setup Workspace and Script
@@ -63,10 +63,10 @@ RUN if [ -z "$WORKER_SCRIPT_URL" ]; then \
     chmod +x worker.py
 
 # 7. Final Verification
-RUN ffmpeg -version && audiowaveform --version && magick -version
+# Added exiftool -ver to ensure it is correctly installed
+RUN ffmpeg -version && audiowaveform --version && magick -version && exiftool -ver
 
 # 8. Set Entrypoint for Lambda
-# Lambda uses the Runtime Interface Client to trigger your 'handler' function
 ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
 
 # Points to 'worker.py' and the function 'handler'
