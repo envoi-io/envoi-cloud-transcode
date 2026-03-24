@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import json
@@ -55,8 +57,7 @@ def build_sprite_map(paths, output_spritemap):
     rows, columns = get_rows_and_columns(paths)
     row_paths = []
     
-    # Use 'magick' or 'convert' depending on environment
-    # On AL2/ImageMagick 6, we use 'convert'
+    # Use 'convert' (ImageMagick 6 on AL2)
     binary = "convert" 
     
     for i in range(rows):
@@ -87,7 +88,6 @@ def build_manifest(paths, fps_numerator, fps_denominator, frame_interval):
         x = W * (i % columns)
         y = H * int(i / columns)
         
-        # Flicks Calculation: (705,600,000 * frame * denom) / num
         frame = frame_interval * (i + 0.5)
         flicks = round((705600000.0 * frame * fps_denominator) / fps_numerator)
         
@@ -103,6 +103,42 @@ def build_manifest(paths, fps_numerator, fps_denominator, frame_interval):
         "sprites": sprites
     }
 
+def get_complete_metadata_report(file_path):
+    """Combines data from ExifTool, FFprobe, and MediaInfo into one dictionary."""
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}
+
+    report = {
+        "file_name": os.path.basename(file_path),
+        "exiftool": {},
+        "ffprobe": {},
+        "mediainfo": {}
+    }
+
+    # 1. Run ExifTool
+    try:
+        exif_res = subprocess.run(['exiftool', '-j', file_path], capture_output=True, text=True)
+        report['exiftool'] = json.loads(exif_res.stdout)[0]
+    except Exception as e:
+        report['exiftool'] = {"error": str(e)}
+
+    # 2. Run FFprobe
+    try:
+        ff_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', file_path]
+        ff_res = subprocess.run(ff_cmd, capture_output=True, text=True)
+        report['ffprobe'] = json.loads(ff_res.stdout)
+    except Exception as e:
+        report['ffprobe'] = {"error": str(e)}
+
+    # 3. Run MediaInfo
+    try:
+        mi_res = subprocess.run(['mediainfo', '--Output=JSON', file_path], capture_output=True, text=True)
+        report['mediainfo'] = json.loads(mi_res.stdout)
+    except Exception as e:
+        report['mediainfo'] = {"error": str(e)}
+
+    return report
+
 # --- 2. UNIFIED MEDIA WORKER LOGIC ---
 
 def process_media(event, context=None):
@@ -112,14 +148,16 @@ def process_media(event, context=None):
     output_key = event.get('output_key', 'output/media')
     mode = event.get('mode', 'sprite')
     
-    # Setup paths in /tmp/
     local_input = "/tmp/video_input.mp4"
     local_sprite = "/tmp/output_sprite.png"
     local_manifest = "/tmp/output_manifest.json"
-    local_output_dat = "/tmp/output.dat"
+    local_dat = "/tmp/output.dat"
+    local_meta = "/tmp/metadata.json"
     
     # Cleanup old artifacts
-    for f in glob.glob("/tmp/still*.png") + glob.glob("/tmp/row_*.png") + [local_input, local_sprite, local_manifest, local_output_dat]:
+    all_tmp = glob.glob("/tmp/still*.png") + glob.glob("/tmp/row_*.png") + \
+              [local_input, local_sprite, local_manifest, local_dat, local_meta]
+    for f in all_tmp:
         if os.path.exists(f): 
             try: os.remove(f)
             except: pass
@@ -128,33 +166,32 @@ def process_media(event, context=None):
         print(f"Downloading source: {input_url}")
         subprocess.run(["curl", "-L", input_url, "-o", local_input], check=True)
 
-        if mode == 'waveform':
+        if mode == 'metadata':
+            print("--- Generating Complete Metadata Report ---")
+            metadata_report = get_complete_metadata_report(local_input)
+            with open(local_meta, 'w') as f:
+                json.dump(metadata_report, f, indent=4)
+            
+            s3_key = f"{output_key}.json" if not output_key.endswith(".json") else output_key
+            print(f"Uploading metadata to s3://{bucket}/{s3_key}")
+            s3.upload_file(local_meta, bucket, s3_key)
+
+        elif mode == 'waveform':
             print("--- Generating Waveform ---")
             zoom = event.get('zoom', 128)
             bits = event.get('bits', 8)
             
-            # Using -o (output flag) for audiowaveform is more stable than shell redirect >
             waveform_cmd = (
                 f"ffmpeg -i {local_input} -map a:0 -f wav - | "
                 f"audiowaveform --input-format wav --output-format dat "
-                f"--zoom {zoom} --bits {bits} --split-channels -o {local_output_dat}"
+                f"--zoom {zoom} --bits {bits} --split-channels -o {local_dat}"
             )
-            
-            print(f"Running Waveform Command: {waveform_cmd}")
-            # Capture output for debugging in CloudWatch
             result = subprocess.run(waveform_cmd, shell=True, capture_output=True, text=True)
-            
             if result.returncode != 0:
-                print(f"Audiowaveform Error: {result.stderr}")
                 raise Exception(f"Audiowaveform failed: {result.stderr}")
 
-            # Verification logic before upload
-            if os.path.exists(local_output_dat):
-                s3_key = output_key if output_key.endswith(".dat") else f"{output_key}.dat"
-                print(f"Uploading waveform to s3://{bucket}/{s3_key}")
-                s3.upload_file(local_output_dat, bucket, s3_key)
-            else:
-                raise FileNotFoundError(f"Local file {local_output_dat} was not found after generation.")
+            s3_key = f"{output_key}.dat" if not output_key.endswith(".dat") else output_key
+            s3.upload_file(local_dat, bucket, s3_key)
             
         else:
             print("--- Generating Detailed Sprite & Manifest ---")
@@ -162,18 +199,12 @@ def process_media(event, context=None):
             den = event.get('fps_den', 1001)
             interval = event.get('frame_interval', 120)
 
-            # 1. Extract
             stills = extract_stills(local_input, "/tmp/", num, den, interval)
-            
-            # 2. Stitch
             build_sprite_map(stills, local_sprite)
-            
-            # 3. Manifest
             manifest_data = build_manifest(stills, num, den, interval)
             with open(local_manifest, 'w') as f:
                 json.dump(manifest_data, f)
 
-            # 4. Upload
             s3.upload_file(local_sprite, bucket, f"{output_key}.png")
             s3.upload_file(local_manifest, bucket, f"{output_key}.json")
 
