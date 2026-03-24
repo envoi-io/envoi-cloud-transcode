@@ -69,5 +69,5 @@ RUN ffmpeg -version && audiowaveform --version && magick -version
 # Lambda uses the Runtime Interface Client to trigger your 'handler' function
 ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
 
-# Points to 'generate_sprite_v2.py' and the function 'handler'
-CMD [ "generate_sprite_v2.handler" ]
+# Points to 'worker.py' and the function 'handler'
+CMD [ "worker.handler" ]
