@@ -5,110 +5,173 @@ import argparse
 import glob
 import boto3
 import sys
+import math
+import uuid
+from itertools import count
 
-# --- 1. CORE PROCESSING LOGIC ---
+# Global dimensions used by your specific extraction logic
+W = 240
+H = 135 # Standard 16:9 for 240w, adjusted by identify in script
+
+# --- 1. CORE PIECE-BY-PIECE LOGIC ---
+
+def extract_stills(input_path, output_path, fps_numerator, fps_denominator, frame_interval):
+    """Extracts individual frames at specific cadence using fast-seeking SS."""
+    paths = []
+    for i in range(1, 1000000):
+        output = os.path.join(output_path, "still%d.png" % i)
+        if os.path.exists(output):
+            os.remove(output)
+            
+        # Precise Seek Time calculation
+        seek_time = (fps_denominator * frame_interval * (i - 0.5)) / fps_numerator + 0.000000999
+        
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-accurate_seek",
+            "-ss", "{:.9f}".format(seek_time), 
+            "-i", input_path,
+            "-vf", "scale=%d:%d" % (W, H), 
+            "-frames:v", "1", 
+            "-update", "1", 
+            output
+        ]
+        
+        subprocess.run(cmd)
+        
+        if not os.path.isfile(output):
+            break
+        paths.append(output)
+    return paths
+
+def get_rows_and_columns(paths):
+    """Calculates squarest grid possible."""
+    if not paths: return 0, 0
+    rows = int(math.ceil(math.sqrt(len(paths))))
+    columns = int(math.ceil(len(paths) / rows))
+    return rows, columns
+
+def build_sprite_map(paths, output_spritemap):
+    """Stitches images into grid using +append and -append to avoid font issues."""
+    rows, columns = get_rows_and_columns(paths)
+    row_paths = []
+    
+    # Use 'magick' or 'convert' depending on environment
+    # On AL2/ImageMagick 6, we use 'convert'
+    binary = "convert" 
+    
+    for i in range(rows):
+        temp_row = "/tmp/row_%s_%s.png" % (i, uuid.uuid4())
+        start = i * columns
+        end = start + columns
+        current_batch = paths[start:end]
+        
+        if not current_batch:
+            continue
+            
+        subprocess.run([binary] + current_batch + ["+append", temp_row])
+        row_paths.append(temp_row)
+    
+    if row_paths:
+        subprocess.run([binary] + row_paths + ["-append", output_spritemap])
+    
+    # Cleanup rows
+    for path in row_paths:
+        if os.path.exists(path):
+            os.remove(path)
+
+def build_manifest(paths, fps_numerator, fps_denominator, frame_interval):
+    """Creates JSON manifest with coordinates and time in Flicks."""
+    sprites = []
+    rows, columns = get_rows_and_columns(paths)
+    for i in range(0, len(paths)):
+        x = W * (i % columns)
+        y = H * int(i / columns)
+        
+        # Flicks Calculation: (705,600,000 * frame * denom) / num
+        frame = frame_interval * (i + 0.5)
+        flicks = round((705600000.0 * frame * fps_denominator) / fps_numerator)
+        
+        sprites.append({
+            "x": x,
+            "y": y,
+            "t": flicks
+        })
+    
+    return {
+        "width": W,
+        "height": H,
+        "sprites": sprites
+    }
+
+# --- 2. UNIFIED MEDIA WORKER LOGIC ---
+
 def process_media(event, context=None):
-    """
-    Core logic: Handles both Sprite generation and Audio Waveform generation.
-    """
-    # Extract params with defaults
+    s3 = boto3.client('s3')
     input_url = event.get('input_url')
     bucket = event.get('output_bucket')
-    output_key = event.get('output_key', 'output/processed_file')
-    mode = event.get('mode', 'sprite')  # Default to sprite if not specified
+    output_key = event.get('output_key', 'output/media')
+    mode = event.get('mode', 'sprite')
     
-    # Lambda environment requires writing to /tmp/
+    # Setup paths in /tmp/
     local_input = "/tmp/video_input.mp4"
-    local_output = "/tmp/output_file" # Generic local output path
+    local_sprite = "/tmp/output_sprite.png"
+    local_manifest = "/tmp/output_manifest.json"
     
-    # Clean up /tmp/ for warm starts
-    for f in glob.glob("/tmp/thumb_*.png") + [local_input, "/tmp/output.json", "/tmp/output.png", "/tmp/output.dat"]:
-        if os.path.exists(f):
+    # Cleanup old artifacts
+    for f in glob.glob("/tmp/still*.png") + glob.glob("/tmp/row_*.png") + [local_input, local_sprite, local_manifest]:
+        if os.path.exists(f): 
             try: os.remove(f)
             except: pass
 
     try:
-        # 1. Download source video
         print(f"Downloading source: {input_url}")
         subprocess.run(["curl", "-L", input_url, "-o", local_input], check=True)
 
-        # 2. Branch logic based on Mode
         if mode == 'waveform':
-            print("--- Starting Waveform Generation ---")
-            local_output = "/tmp/output.dat"
-            zoom = event.get('zoom', 128)
-            bits = event.get('bits', 8)
-            
-            # Use the pipe-based command from your Docker execution
+            print("--- Generating Waveform ---")
+            local_output_dat = "/tmp/output.dat"
             waveform_cmd = (
                 f"ffmpeg -i {local_input} -map a:0 -f wav - | "
                 f"audiowaveform --input-format wav --output-format dat "
-                f"--zoom {zoom} --bits {bits} --split-channels > {local_output}"
+                f"--zoom {event.get('zoom', 128)} --bits {event.get('bits', 8)} --split-channels > {local_output_dat}"
             )
-            print(f"Running Waveform Command: {waveform_cmd}")
             subprocess.run(waveform_cmd, shell=True, check=True)
+            s3.upload_file(local_output_dat, bucket, f"{output_key}.dat")
             
         else:
-            print("--- Starting Sprite Generation ---")
-            local_output = "/tmp/output.png"
-            local_mesh = "/tmp/output.json"
-            num_thumbs = event.get('n', 24)
-            interval = event.get('i', 120)
-            width = event.get('W', 240)
+            print("--- Generating Detailed Sprite & Manifest ---")
+            # Pull frame timing from event or default to common values
+            # (Numerator 24000, Denom 1001 for 23.976fps)
+            num = event.get('fps_num', 24000)
+            den = event.get('fps_den', 1001)
+            interval = event.get('frame_interval', 120)
 
-            # Generate Thumbs
-            temp_pattern = "/tmp/thumb_%03d.png"
-            ffmpeg_cmd = ["ffmpeg", "-y", "-i", local_input, "-vf", f"fps=1/{interval},scale={width}:-1", "-vframes", str(num_thumbs), temp_pattern]
-            subprocess.run(ffmpeg_cmd, check=True)
-
-            # Create Sprite
-            montage_cmd = f"montage /tmp/thumb_*.png -tile x1 -geometry +0+0 {local_output}"
-            subprocess.run(montage_cmd, shell=True, check=True)
+            # 1. Extract
+            stills = extract_stills(local_input, "/tmp/", num, den, interval)
             
-            # Create Mesh (Optional for sprites)
-            with open(local_mesh, 'w') as f:
-                json.dump({"input": input_url, "thumbs": num_thumbs}, f)
-            if bucket:
-                s3 = boto3.client('s3')
-                s3.upload_file(local_mesh, bucket, f"{output_key}.json")
+            # 2. Stitch
+            build_sprite_map(stills, local_sprite)
+            
+            # 3. Manifest
+            manifest_data = build_manifest(stills, num, den, interval)
+            with open(local_manifest, 'w') as f:
+                json.dump(manifest_data, f)
 
-        # 3. Upload Result to S3
-        if bucket:
-            s3 = boto3.client('s3')
-            final_s3_key = output_key if output_key.endswith(('.dat', '.png')) else f"{output_key}.dat" if mode == 'waveform' else f"{output_key}.png"
-            print(f"Uploading result to s3://{bucket}/{final_s3_key}")
-            s3.upload_file(local_output, bucket, final_s3_key)
-            return {'statusCode': 200, 'body': f"Success: {final_s3_key}"}
-        
-        return {'statusCode': 200, 'body': 'Process complete (No S3 upload requested)'}
+            # 4. Upload
+            s3.upload_file(local_sprite, bucket, f"{output_key}.png")
+            s3.upload_file(local_manifest, bucket, f"{output_key}.json")
+
+        return {'statusCode': 200, 'body': f"Success: {output_key}"}
 
     except Exception as e:
         print(f"FATAL ERROR: {str(e)}")
         return {'statusCode': 500, 'body': str(e)}
 
-# --- 2. AWS LAMBDA HANDLER ---
 def handler(event, context):
     return process_media(event, context)
 
-# --- 3. CLI ENTRY POINT ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Envoi Media Worker CLI")
-    parser.add_argument("input", help="Path or URL to input video")
-    parser.add_argument("--mode", choices=['sprite', 'waveform'], default='sprite')
-    parser.add_argument("-n", type=int, default=24, help="Number of frames (Sprite)")
-    parser.add_argument("-W", type=int, default=240, help="Width (Sprite)")
-    parser.add_argument("--zoom", type=int, default=128, help="Zoom (Waveform)")
-    parser.add_argument("--bits", type=int, default=8, help="Bits (Waveform)")
-    
-    args = parser.parse_args()
-    
-    # Mock an event object for the core logic
-    cli_event = {
-        "input_url": args.input,
-        "mode": args.mode,
-        "n": args.n,
-        "W": args.W,
-        "zoom": args.zoom,
-        "bits": args.bits
-    }
-    process_media(cli_event)
+    # Simplified CLI mock for testing
+    if len(sys.argv) > 1:
+        test_event = {"input_url": sys.argv[1], "mode": "sprite", "output_bucket": None}
+        process_media(test_event)
