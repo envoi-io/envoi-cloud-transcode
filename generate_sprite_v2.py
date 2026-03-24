@@ -116,9 +116,10 @@ def process_media(event, context=None):
     local_input = "/tmp/video_input.mp4"
     local_sprite = "/tmp/output_sprite.png"
     local_manifest = "/tmp/output_manifest.json"
+    local_output_dat = "/tmp/output.dat"
     
     # Cleanup old artifacts
-    for f in glob.glob("/tmp/still*.png") + glob.glob("/tmp/row_*.png") + [local_input, local_sprite, local_manifest]:
+    for f in glob.glob("/tmp/still*.png") + glob.glob("/tmp/row_*.png") + [local_input, local_sprite, local_manifest, local_output_dat]:
         if os.path.exists(f): 
             try: os.remove(f)
             except: pass
@@ -129,19 +130,34 @@ def process_media(event, context=None):
 
         if mode == 'waveform':
             print("--- Generating Waveform ---")
-            local_output_dat = "/tmp/output.dat"
+            zoom = event.get('zoom', 128)
+            bits = event.get('bits', 8)
+            
+            # Using -o (output flag) for audiowaveform is more stable than shell redirect >
             waveform_cmd = (
                 f"ffmpeg -i {local_input} -map a:0 -f wav - | "
                 f"audiowaveform --input-format wav --output-format dat "
-                f"--zoom {event.get('zoom', 128)} --bits {event.get('bits', 8)} --split-channels > {local_output_dat}"
+                f"--zoom {zoom} --bits {bits} --split-channels -o {local_output_dat}"
             )
-            subprocess.run(waveform_cmd, shell=True, check=True)
-            s3.upload_file(local_output_dat, bucket, f"{output_key}.dat")
+            
+            print(f"Running Waveform Command: {waveform_cmd}")
+            # Capture output for debugging in CloudWatch
+            result = subprocess.run(waveform_cmd, shell=True, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"Audiowaveform Error: {result.stderr}")
+                raise Exception(f"Audiowaveform failed: {result.stderr}")
+
+            # Verification logic before upload
+            if os.path.exists(local_output_dat):
+                s3_key = output_key if output_key.endswith(".dat") else f"{output_key}.dat"
+                print(f"Uploading waveform to s3://{bucket}/{s3_key}")
+                s3.upload_file(local_output_dat, bucket, s3_key)
+            else:
+                raise FileNotFoundError(f"Local file {local_output_dat} was not found after generation.")
             
         else:
             print("--- Generating Detailed Sprite & Manifest ---")
-            # Pull frame timing from event or default to common values
-            # (Numerator 24000, Denom 1001 for 23.976fps)
             num = event.get('fps_num', 24000)
             den = event.get('fps_den', 1001)
             interval = event.get('frame_interval', 120)
@@ -171,7 +187,6 @@ def handler(event, context):
     return process_media(event, context)
 
 if __name__ == "__main__":
-    # Simplified CLI mock for testing
     if len(sys.argv) > 1:
         test_event = {"input_url": sys.argv[1], "mode": "sprite", "output_bucket": None}
         process_media(test_event)
