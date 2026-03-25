@@ -1,4 +1,4 @@
-# Use Amazon Linux 2 (matches your previous environment)
+# Use Amazon Linux 2
 FROM public.ecr.aws/amazonlinux/amazonlinux:2
 
 # Define build argument for the Python script URL
@@ -31,8 +31,9 @@ RUN amazon-linux-extras install epel -y && \
     boost-system && \
     yum clean all
 
-# 2. Create the Symbolic Link for ImageMagick (magick -> convert)
-RUN ln -s /usr/bin/convert /usr/bin/magick
+# 2. ImageMagick Fixes: Symlink and Security Policy for large sprites
+RUN ln -s /usr/bin/convert /usr/bin/magick && \
+    sed -i 's/policy domain="resource" name="disk" value="1GiB"/policy domain="resource" name="disk" value="10GiB"/' /etc/ImageMagick-6/policy.xml || true
 
 # 3. Install audiowaveform via RPM
 RUN wget -q https://codeberg.org/chrisn/audiowaveform/releases/download/1.10.1/audiowaveform-1.10.1-1.amzn2.x86_64.rpm && \
@@ -48,14 +49,14 @@ RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-stati
     chmod +x /usr/bin/ffmpeg /usr/bin/ffprobe && \
     rm -rf ffmpeg-*-amd64-static*
 
-# 5. Install Python AWS SDK (Removed awslambdaric as it's not needed for ECS)
+# 5. Install Python AWS SDK (Boto3)
 RUN pip3 install --no-cache-dir boto3
 
 # 6. Setup Workspace and Script
 WORKDIR /var/task
 ENV PATH="/usr/bin:/usr/local/bin:${PATH}"
 
-# Pull script from URL
+# Pull worker.py from the provided URL
 RUN if [ -z "$WORKER_SCRIPT_URL" ]; then \
         echo "ERROR: WORKER_SCRIPT_URL build argument is missing." && exit 1; \
     fi && \
@@ -65,7 +66,5 @@ RUN if [ -z "$WORKER_SCRIPT_URL" ]; then \
 # 7. Final Verification
 RUN ffmpeg -version && audiowaveform --version && magick -version && exiftool -ver
 
-# 8. UPDATED ENTRYPOINT FOR ECS
-# We run the script directly using Python. 
-# This triggers the 'if __name__ == "__main__":' block in your worker script.
+# 8. ECS ENTRYPOINT (Runs script immediately)
 ENTRYPOINT [ "/usr/bin/python3", "worker.py" ]
