@@ -1,6 +1,6 @@
 {
   "mode": "sprite",
-  "input_url": "https://d29ft30s7ergtl.cloudfront.net/1111/Elemental/1111/submission/partner/standalone/MP4_humanenduranceteaserenglishsubtitles1080p1772904327033/humanenduranceteaserenglishsubtitles1080p1772904327033_6000K.mp4",
+  "input_url": "https://host/1111/Elemental/1111/submission/partner/standalone/MP4_humanenduranceteaserenglishsubtitles1080p1772904327033/humanenduranceteaserenglishsubtitles1080p1772904327033_6000K.mp4",
   "output_bucket": "envoi-kj-test-cdn",
   "output_key": "sprites/humanendurance",
   "n": 30,
