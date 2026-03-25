@@ -202,7 +202,7 @@ def process_media(event, context=None):
             manifest_data = build_manifest(stills, num, den, interval)
             with open(local_manifest, 'w') as f:
                 json.dump(manifest_data, f)
-            s3.upload_file(local_sprite, bucket, f"{output_key}.png")
+            s3.upload_file(local_sprite, bucket, f"{output_key}.jpg")
             s3.upload_file(local_manifest, bucket, f"{output_key}.json")
 
         print(f"COMPLETED SUCCESSFULLY: {output_key}")
