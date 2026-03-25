@@ -1,0 +1,10 @@
+
+
+{
+  "mode": "waveform",
+  "input_url": "https://accurate-player-static.s3.eu-central-1.amazonaws.com/Sintel/sintel-2048-timecode-6ch.mp4", 
+  "output_bucket": "envoi-kj-test-cdn",
+  "output_key": "waveforms/humanendurance",
+  "zoom": 128,
+  "bits": 8
+}
