@@ -6,31 +6,27 @@ import argparse
 import sys
 
 # --- Configuration Section ---
-AWS_PROFILE = "kj-aws"  # <--- Set your profile name here
+AWS_PROFILE = "kj-aws"
 REGION = "us-east-1"
-PROJECT_NAME = "envoi-media-worker"
-REPO_NAME = "envoi-media-worker-lambda"
-LAMBDA_FUNC_NAME = "envoi-media-worker"
+PROJECT_NAME = "envoi-media-worker-ecs"
+REPO_NAME = "envoi-media-worker-repo"
+TASK_FAMILY = "envoi-media-task"
+CLUSTER_NAME = "envoi-media-cluster"
 ROLE_ARN = "arn:aws:iam::833740154547:role/envoi-media-worker"
 
-# URLs
-DOCKERFILE_URL = "https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/Dockerfile.worker"
-SCRIPT_URL = "https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/generate_sprite_v2.py"
+# URL of the Dockerfile (ensure this points to the ECS version without Lambda RIC)
+DOCKERFILE_URL = "https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/Dockerfile-ecs.worker"
+
+# URL of the actual media worker Python script
+SCRIPT_URL = "https://raw.githubusercontent.com/envoi-io/envoi-cloud-transcode/refs/heads/main/envoi-media-worker-ecs.py"
 
 def get_clients(profile_name):
-    """Initializes AWS clients using the configured profile."""
-    try:
-        print(f"--- Using AWS Profile: {profile_name} ---")
-        session = boto3.Session(profile_name=profile_name)
-        return {
-            "cb": session.client('codebuild', region_name=REGION),
-            "ecr": session.client('ecr', region_name=REGION),
-            "awslambda": session.client('lambda', region_name=REGION)
-        }
-    except Exception as e:
-        print(f"Error: Could not find profile '{profile_name}'. Check ~/.aws/credentials")
-        print(f"Details: {e}")
-        sys.exit(1)
+    session = boto3.Session(profile_name=profile_name)
+    return {
+        "cb": session.client('codebuild', region_name=REGION),
+        "ecr": session.client('ecr', region_name=REGION),
+        "ecs": session.client('ecs', region_name=REGION)
+    }
 
 def setup_ecr(ecr):
     print(f"Checking ECR Repository: {REPO_NAME}...")
@@ -38,108 +34,127 @@ def setup_ecr(ecr):
         ecr.create_repository(repositoryName=REPO_NAME)
     except ecr.exceptions.RepositoryAlreadyExistsException:
         pass
-    
-    desc = ecr.describe_repositories(repositoryNames=[REPO_NAME])
-    return desc['repositories'][0]['repositoryUri']
+    return ecr.describe_repositories(repositoryNames=[REPO_NAME])['repositories'][0]['repositoryUri']
 
 def create_codebuild_project(cb, repo_uri):
     print("Configuring CodeBuild Project...")
     buildspec = {
         "version": "0.2",
         "phases": {
-            "pre_build": {
-                "commands": [
-                    "echo Logging in to Amazon ECR...",
-                    "aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI",
-                    f"curl -o Dockerfile {DOCKERFILE_URL}"
-                ]
-            },
-            "build": {
-                "commands": [
-                    "echo Building Docker image for Lambda...",
-                    f"docker build --build-arg WORKER_SCRIPT_URL='{SCRIPT_URL}' -t $REPOSITORY_URI:latest ."
-                ]
-            },
-            "post_build": {
-                "commands": [
-                    "echo Pushing image to ECR...",
-                    "docker push $REPOSITORY_URI:latest"
-                ]
-            }
+            "pre_build": {"commands": [
+                "aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI",
+                f"curl -o Dockerfile {DOCKERFILE_URL}"
+            ]},
+            "build": {"commands": [
+                f"docker build --build-arg WORKER_SCRIPT_URL='{SCRIPT_URL}' -t $REPOSITORY_URI:latest ."
+            ]},
+            "post_build": {"commands": [
+                "docker push $REPOSITORY_URI:latest"
+            ]}
         }
     }
-
+    
     params = {
         "name": PROJECT_NAME,
-        "artifacts": {'type': 'NO_ARTIFACTS'},
+        "artifacts": {"type": "NO_ARTIFACTS"}, 
         "environment": {
-            'type': 'LINUX_CONTAINER',
+            'type': 'LINUX_CONTAINER', 
             'image': 'aws/codebuild/amazonlinux2-x86_64-standard:5.0',
-            'computeType': 'BUILD_GENERAL1_SMALL',
+            'computeType': 'BUILD_GENERAL1_SMALL', 
             'environmentVariables': [{'name': 'REPOSITORY_URI', 'value': repo_uri}],
             'privilegedMode': True
         },
         "serviceRole": ROLE_ARN,
         "source": {
-            'type': 'NO_SOURCE',
+            'type': 'NO_SOURCE', 
             'buildspec': json.dumps(buildspec)
         }
     }
-
+    
     try:
         cb.create_project(**params)
+        print(f"Created CodeBuild project: {PROJECT_NAME}")
     except cb.exceptions.ResourceAlreadyExistsException:
+        print(f"Updating existing CodeBuild project: {PROJECT_NAME}")
         cb.update_project(**params)
 
 def run_build(cb):
-    print("Starting Build Process (this takes 2-4 minutes)...")
-    response = cb.start_build(projectName=PROJECT_NAME)
-    build_id = response['build']['id']
-    
+    print("Starting Build Process (Building Docker Image)...")
+    build_id = cb.start_build(projectName=PROJECT_NAME)['build']['id']
     while True:
-        status_resp = cb.batch_get_builds(ids=[build_id])
-        status = status_resp['builds'][0]['buildStatus']
-        if status == 'SUCCEEDED':
-            print("\nBuild SUCCEEDED")
+        status = cb.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
+        if status == 'SUCCEEDED': 
+            print("\nBuild Successful!")
             return True
-        elif status in ['FAILED', 'STOPPED']:
-            print(f"\nBuild {status}. Check CloudWatch Logs for CodeBuild.")
+        if status in ['FAILED', 'STOPPED']: 
+            print(f"\nBuild {status}. Check AWS Console for logs.")
             return False
-        
         sys.stdout.write('.')
         sys.stdout.flush()
         time.sleep(10)
 
-def deploy_lambda(awslambda, repo_uri):
-    image_uri = f"{repo_uri}:latest"
-    try:
-        print(f"Creating Lambda Function: {LAMBDA_FUNC_NAME}...")
-        awslambda.create_function(
-            FunctionName=LAMBDA_FUNC_NAME,
-            PackageType='Image',
-            Code={'ImageUri': image_uri},
-            Role=ROLE_ARN,
-            Timeout=600,  # 10 minutes for heavy processing
-            MemorySize=3008 # High memory helps CPU speed in Lambda
-        )
-    except awslambda.exceptions.ResourceConflictException:
-        print("Lambda already exists, updating image...")
-        awslambda.update_function_code(FunctionName=LAMBDA_FUNC_NAME, ImageUri=image_uri)
+def deploy_ecs(ecs, repo_uri):
+    print(f"\nEnsuring ECS Cluster: {CLUSTER_NAME}...")
+    ecs.create_cluster(clusterName=CLUSTER_NAME, capacityProviders=['FARGATE'])
+
+    print(f"Registering Task Definition (4 vCPU, 10GB RAM, 200GB Ephemeral Storage)...")
+    
+    container_env = [
+        {'name': 'input_url', 'value': ''}, 
+        {'name': 'output_bucket', 'value': ''},
+        {'name': 'output_key', 'value': 'output/media'},
+        {'name': 'mode', 'value': 'sprite'},
+        {'name': 'zoom', 'value': '128'},
+        {'name': 'bits', 'value': '8'},
+        {'name': 'fps_num', 'value': '24000'},
+        {'name': 'fps_den', 'value': '1001'},
+        {'name': 'frame_interval', 'value': '120'}
+    ]
+
+    ecs.register_task_definition(
+        family=TASK_FAMILY,
+        networkMode='awsvpc',
+        requiresCompatibilities=['FARGATE'],
+        cpu='4096',    # 4 vCPUs
+        memory='10240', # 10 GB
+        executionRoleArn=ROLE_ARN,
+        taskRoleArn=ROLE_ARN,
+        ephemeralStorage={'sizeInGiB': 200},
+        containerDefinitions=[{
+            'name': 'media-worker',
+            'image': f"{repo_uri}:latest",
+            'essential': True,
+            'environment': container_env,
+            'logConfiguration': {
+                'logDriver': 'awslogs',
+                'options': {
+                    'awslogs-group': f"/ecs/{TASK_FAMILY}",
+                    'awslogs-region': REGION,
+                    'awslogs-stream-prefix': 'ecs',
+                    'awslogs-create-group': 'true'
+                }
+            }
+        }]
+    )
 
 def main():
-    # Allow command line to override the config variable if needed
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", default=AWS_PROFILE)
     args = parser.parse_args()
-
+    
     clients = get_clients(args.profile)
     
+    # 1. Prepare Registry
     uri = setup_ecr(clients['ecr'])
+    
+    # 2. Configure Build
     create_codebuild_project(clients['cb'], uri)
     
+    # 3. Build and Push Image
     if run_build(clients['cb']):
-        deploy_lambda(clients['awslambda'], uri)
-        print("\nSUCCESS: Media Processor is live on Lambda.")
+        # 4. Update ECS configuration
+        deploy_ecs(clients['ecs'], uri)
+        print(f"\nDeployment Complete. You can now trigger tasks using the Node.js script.")
     else:
         sys.exit(1)
 
