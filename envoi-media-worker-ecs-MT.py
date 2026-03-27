@@ -13,206 +13,186 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Global dimensions
 W = 240
 H = 135 
-MAX_WORKERS = 8  # Adjust based on ECS CPU (4 vCPU = ~8-16 workers)
+MAX_WORKERS = 8  # Optimized for 4 vCPU Fargate instances
 
 # --- 1. DOWNLOAD UTILITIES ---
 
 def download_s3_chunked(s3_url, local_path):
-    """Downloads S3 object using chunked Range requests (up to 5GB chunks)."""
+    """Downloads S3 object using chunked Range requests."""
     s3 = boto3.client('s3')
     parsed = urlparse(s3_url)
     bucket = parsed.netloc
     key = parsed.path.lstrip('/')
     
-    # Get total file size
     response = s3.head_object(Bucket=bucket, Key=key)
     total_size = response['ContentLength']
-    chunk_size = 1024 * 1024 * 1024 # 1GB chunks (safe for memory)
+    chunk_size = 512 * 1024 * 1024 # 512MB chunks for balance
     
-    print(f"Downloading s3://{bucket}/{key} ({total_size} bytes) in chunks...")
-    
+    print(f"Downloading s3://{bucket}/{key} ({total_size} bytes)...")
     with open(local_path, 'wb') as f:
         for start in range(0, total_size, chunk_size):
             end = min(start + chunk_size - 1, total_size - 1)
             byte_range = f'bytes={start}-{end}'
-            
             chunk_resp = s3.get_object(Bucket=bucket, Key=key, Range=byte_range)
             f.write(chunk_resp['Body'].read())
-            print(f"  Downloaded bytes {start} through {end}")
+    print("Download complete.")
 
 def get_input_file(input_url):
-    """Handles both HTTPS and S3 inputs, returns local filename based on basename."""
+    """Detects protocol and returns (local_path, base_name)."""
     parsed = urlparse(input_url)
-    base_name = os.path.basename(parsed.path)
-    if not base_name:
-        base_name = "input_file"
-        
+    base_name = os.path.basename(parsed.path) or "input_file"
     local_path = os.path.join("/tmp", base_name)
     
     if input_url.startswith("s3://"):
         download_s3_chunked(input_url, local_path)
     else:
-        print(f"Downloading via HTTPS: {input_url}")
+        print(f"Downloading HTTPS: {input_url}")
         subprocess.run(["curl", "-L", input_url, "-o", local_path], check=True)
-        
     return local_path, base_name
 
-# --- 2. MULTI-THREADED PROCESSING ---
+# --- 2. METADATA LOGIC ---
+
+def get_complete_metadata_report(file_path):
+    """Runs ExifTool, FFprobe, and MediaInfo."""
+    report = {"file_name": os.path.basename(file_path), "exiftool": {}, "ffprobe": {}, "mediainfo": {}}
+    try:
+        res = subprocess.run(['exiftool', '-j', file_path], capture_output=True, text=True)
+        report['exiftool'] = json.loads(res.stdout)[0]
+    except: pass
+    try:
+        cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', file_path]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        report['ffprobe'] = json.loads(res.stdout)
+    except: pass
+    try:
+        res = subprocess.run(['mediainfo', '--Output=JSON', file_path], capture_output=True, text=True)
+        report['mediainfo'] = json.loads(res.stdout)
+    except: pass
+    return report
+
+# --- 3. SPRITE & THREADING LOGIC ---
 
 def run_ffmpeg_task(task_args):
-    """Helper for threading individual FFmpeg still extractions."""
     output_path, seek_time, input_path = task_args
-    cmd = [
-        "ffmpeg", "-loglevel", "error", "-accurate_seek",
-        "-ss", "{:.9f}".format(seek_time), 
-        "-i", input_path,
-        "-vf", f"scale={W}:{H}", 
-        "-frames:v", "1", "-update", "1", output_path
-    ]
+    cmd = ["ffmpeg", "-loglevel", "error", "-accurate_seek", "-ss", "{:.9f}".format(seek_time), 
+           "-i", input_path, "-vf", f"scale={W}:{H}", "-frames:v", "1", "-update", "1", output_path]
     subprocess.run(cmd)
     return output_path if os.path.exists(output_path) else None
 
 def extract_stills_multithreaded(input_path, output_dir, num, den, interval):
-    """Extracts stills using a ThreadPool to speed up FFmpeg seeking."""
-    # First, probe for total duration to know how many stills to extract
-    probe = subprocess.run([
-        "ffprobe", "-v", "error", "-show_entries", "format=duration", 
-        "-of", "default=noprint_wrappers=1:nokey=1", input_path
-    ], capture_output=True, text=True)
-    
-    duration = float(probe.stdout.strip())
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", 
+                            "-of", "default=noprint_wrappers=1:nokey=1", input_path], 
+                           capture_output=True, text=True)
+    duration = float(probe.stdout.strip() or 0)
     total_stills = int((duration * num / den) / interval)
-    print(f"Detected duration {duration}s. Planning {total_stills} stills.")
-
-    tasks = []
-    for i in range(1, total_stills + 1):
-        output = os.path.join(output_dir, f"still{i}.png")
-        seek_time = (den * interval * (i - 0.5)) / num + 0.000000999
-        tasks.append((output, seek_time, input_path))
-
+    
+    tasks = [(os.path.join(output_dir, f"still{i}.png"), (den * interval * (i - 0.5)) / num + 0.000000999, input_path) 
+             for i in range(1, total_stills + 1)]
+    
     paths = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(run_ffmpeg_task, t): t for t in tasks}
-        for future in as_completed(futures):
-            res = future.result()
+        futures = [executor.submit(run_ffmpeg_task, t) for t in tasks]
+        for f in as_completed(futures):
+            res = f.result()
             if res: paths.append(res)
-            
     return sorted(paths)
 
-def build_row(args):
-    """Helper for threading ImageMagick row stitching."""
-    binary, batch, temp_row = args
-    subprocess.run([binary] + batch + ["+append", temp_row])
-    return temp_row
-
 def build_sprite_map_multithreaded(paths, output_spritemap):
-    """Stitches rows in parallel, then combines into final JPG."""
     if not paths: return
-    
-    rows, columns = get_rows_and_columns(paths)
-    binary = "convert" 
-    row_tasks = []
-    
-    for i in range(rows):
-        temp_row = f"/tmp/row_{i}_{uuid.uuid4()}.png"
-        start = i * columns
-        current_batch = paths[start:start + columns]
-        if current_batch:
-            row_tasks.append((binary, current_batch, temp_row))
-
-    # Parallelize Row Generation
-    row_paths = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        row_paths = list(executor.map(build_row, row_tasks))
-    
-    # Final Vertical Stitch
-    if row_paths:
-        cmd = [binary] + row_paths + [
-            "-append", "-quality", "80", "-interlace", "Plane", 
-            "-sampling-factor", "4:2:0", output_spritemap
-        ]
-        subprocess.run(cmd)
-        
-    for p in row_paths:
-        if os.path.exists(p): os.remove(p)
-
-# --- 3. HELPER FUNCTIONS ---
-
-def get_rows_and_columns(paths):
     count = len(paths)
     rows = int(math.ceil(math.sqrt(count)))
-    columns = int(math.ceil(count / rows))
-    return rows, columns
-
-# --- 4. MAIN HANDLER ---
-
-def process_media(event, context=None):
-    from generate_sprite_v2 import get_parameters # assuming standard helper
-    params = get_parameters(event)
+    cols = int(math.ceil(count / rows))
     
-    s3 = boto3.client('s3')
-    input_url = params.get('input_url')
-    bucket = params.get('output_bucket')
-    output_key = params.get('output_key', 'output/media')
-    mode = params.get('mode', 'sprite')
+    row_tasks = []
+    for i in range(rows):
+        temp_row = f"/tmp/row_{i}_{uuid.uuid4()}.png"
+        batch = paths[i*cols : (i+1)*cols]
+        if batch: row_tasks.append((batch, temp_row))
 
-    # 1. Download and get smart basenames
+    def stitch_row(args):
+        batch, out = args
+        subprocess.run(["convert"] + batch + ["+append", out])
+        return out
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        row_paths = list(executor.map(stitch_row, row_tasks))
+    
+    if row_paths:
+        subprocess.run(["convert"] + row_paths + ["-append", "-quality", "80", "-interlace", "Plane", output_spritemap])
+    for p in row_paths: 
+        if os.path.exists(p): os.remove(p)
+
+def build_manifest(paths, num, den, interval):
+    count = len(paths)
+    rows = int(math.ceil(math.sqrt(count)))
+    cols = int(math.ceil(count / rows))
+    sprites = []
+    for i in range(count):
+        sprites.append({
+            "x": W * (i % cols), "y": H * int(i / cols),
+            "t": round((705600000.0 * interval * (i + 0.5) * den) / num)
+        })
+    return {"width": W, "height": H, "sprites": sprites}
+
+# --- 4. RUNTIME LOGIC ---
+
+def get_parameters(event):
+    params = event if event else {}
+    env_mapping = {
+        'input_url': os.environ.get('input_url'), 'output_bucket': os.environ.get('output_bucket'),
+        'output_key': os.environ.get('output_key', 'output/media'), 'mode': os.environ.get('mode', 'sprite'),
+        'zoom': os.environ.get('zoom', '128'), 'bits': os.environ.get('bits', '8'),
+        'fps_num': os.environ.get('fps_num', '24000'), 'fps_den': os.environ.get('fps_den', '1001'),
+        'frame_interval': os.environ.get('frame_interval', '300')
+    }
+    for k, v in env_mapping.items():
+        if k not in params or params[k] is None:
+            if k in ['zoom', 'bits', 'fps_num', 'fps_den', 'frame_interval'] and v: params[k] = int(v)
+            else: params[k] = v
+    return params
+
+def main(event, context=None):
+    params = get_parameters(event)
+    s3 = boto3.client('s3')
+    input_url, bucket, output_key, mode = params['input_url'], params['output_bucket'], params['output_key'], params['mode']
+
     local_input, base_name = get_input_file(input_url)
     
-    # Define outputs based on the basename
-    local_sprite = f"/tmp/{base_name}_sprite.jpg"
-    local_manifest = f"/tmp/{base_name}_manifest.json"
-    local_dat = f"/tmp/{base_name}.dat"
-    local_meta = f"/tmp/{base_name}_metadata.json"
-
     try:
         if mode == 'metadata':
-            from generate_sprite_v2 import get_complete_metadata_report
             report = get_complete_metadata_report(local_input)
-            with open(local_meta, 'w') as f:
-                json.dump(report, f, indent=4)
+            local_meta = f"/tmp/{base_name}_meta.json"
+            with open(local_meta, 'w') as f: json.dump(report, f, indent=4)
             s3.upload_file(local_meta, bucket, f"{output_key}.json")
 
         elif mode == 'waveform':
-            print("--- Generating Waveform ---")
-            zoom = params.get('zoom', 128)
-            bits = params.get('bits', 8)
             ext = os.path.splitext(local_input)[1].lower()
-            
-            # Logic for direct vs piped FFmpeg
+            local_dat = f"/tmp/{base_name}.dat"
+            zoom, bits = params['zoom'], params['bits']
             if ext in ['.mp3', '.wav', '.aiff', '.aif']:
-                waveform_cmd = f"audiowaveform -i {local_input} --output-format dat --zoom {zoom} --bits {bits} -o {local_dat}"
+                cmd = f"audiowaveform -i {local_input} --output-format dat --zoom {zoom} --bits {bits} -o {local_dat}"
             else:
-                waveform_cmd = (
-                    f"ffmpeg -i {local_input} -map a:0 -f wav - | "
-                    f"audiowaveform --input-format wav --output-format dat "
-                    f"--zoom {zoom} --bits {bits} --split-channels -o {local_dat}"
-                )
-            
-            subprocess.run(waveform_cmd, shell=True, check=True)
+                cmd = f"ffmpeg -i {local_input} -map a:0 -f wav - | audiowaveform --input-format wav --output-format dat --zoom {zoom} --bits {bits} --split-channels -o {local_dat}"
+            subprocess.run(cmd, shell=True, check=True)
             s3.upload_file(local_dat, bucket, f"{output_key}.dat")
             
         else: # Sprite mode
-            print("--- Generating Parallelized Sprite ---")
-            num, den = params.get('fps_num', 24000), params.get('fps_den', 1001)
-            interval = params.get('frame_interval', 300)
-
+            num, den, interval = params['fps_num'], params['fps_den'], params['frame_interval']
+            local_sprite = f"/tmp/{base_name}.jpg"
+            local_manifest = f"/tmp/{base_name}.json"
+            
             stills = extract_stills_multithreaded(local_input, "/tmp", num, den, interval)
             build_sprite_map_multithreaded(stills, local_sprite)
-            
-            from generate_sprite_v2 import build_manifest
             manifest = build_manifest(stills, num, den, interval)
-            with open(local_manifest, 'w') as f:
-                json.dump(manifest, f)
-
+            with open(local_manifest, 'w') as f: json.dump(manifest, f)
+            
             s3.upload_file(local_sprite, bucket, f"{output_key}.jpg")
             s3.upload_file(local_manifest, bucket, f"{output_key}.json")
 
-        return {'statusCode': 200, 'body': f"Success: {output_key}"}
-
+        print(f"Job finished: {output_key}")
     except Exception as e:
-        print(f"FATAL ERROR: {e}")
-        return {'statusCode': 500, 'body': str(e)}
+        print(f"FATAL: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    process_media({}, None)
+    main({})
