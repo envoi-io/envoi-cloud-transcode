@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+import warnings
+# --- 0. SILENCE DEPRECATION WARNINGS ---
+# This suppresses the Boto3 Python 3.7 end-of-life warning
+warnings.filterwarnings("ignore", category=PythonDeprecationWarning) if 'PythonDeprecationWarning' in globals() else None
+warnings.filterwarnings("ignore", message=".*Boto3 will no longer support Python 3.7.*")
+
 import os
 import subprocess
 import json
@@ -26,10 +32,10 @@ class RobustLogger:
 
     def emit(self, level, module, message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        # Get the name of the current thread (useful for parallel FFmpeg)
         t_name = threading.current_thread().name
         with self._lock:
-            print(f"[{timestamp}] [{level:7}] [{t_name:12}] [{module:12}] {message}")
+            # Explicitly writing to stdout and flushing immediately for CloudWatch
+            sys.stdout.write(f"[{timestamp}] [{level:7}] [{t_name:12}] [{module:12}] {message}\n")
             sys.stdout.flush()
 
     def info(self, module, msg): self.emit("INFO", module, msg)
@@ -39,9 +45,7 @@ class RobustLogger:
 logger = RobustLogger()
 
 def run_command_streaming(cmd, module_name, shell=False):
-    """
-    Executes a command and streams STDOUT and STDERR to logs in real-time.
-    """
+    """Executes a command and streams STDOUT/STDERR to logs line-by-line."""
     start_time = time.time()
     cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.info(module_name, f"EXEC START: {cmd_str}")
@@ -50,13 +54,12 @@ def run_command_streaming(cmd, module_name, shell=False):
         cmd,
         shell=shell,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, # Merge stderr into stdout for tools like ffmpeg/curl
+        stderr=subprocess.STDOUT, 
         text=True,
         bufsize=1,
         universal_newlines=True
     )
 
-    # Stream output line by line
     for line in iter(process.stdout.readline, ""):
         clean_line = line.strip()
         if clean_line:
@@ -73,7 +76,7 @@ def run_command_streaming(cmd, module_name, shell=False):
     logger.info(module_name, f"EXEC END | Duration: {duration:.2f}s")
     return True
 
-# --- 2. S3 PROGRESS TRACKING ---
+# --- 2. DETAILED S3 PROGRESS TRACKING ---
 
 class S3Progress(object):
     def __init__(self, filename, size, module):
@@ -82,48 +85,70 @@ class S3Progress(object):
         self._seen = 0
         self._lock = threading.Lock()
         self._module = module
-        self._last_report = -10 # Force immediate 0% report
+        self._last_report_time = time.time()
+        self._last_report_bytes = 0
 
     def __call__(self, bytes_amount):
         with self._lock:
             self._seen += bytes_amount
-            percent = (self._seen / self._size) * 100
-            if percent - self._last_report >= 10 or percent >= 100:
-                logger.info(self._module, f"Transfer: {percent:.1f}% ({self._seen}/{self._size} bytes)")
-                self._last_report = percent
+            now = time.time()
+            delta_time = now - self._last_report_time
+            
+            # Report every 2 seconds for visibility
+            if delta_time >= 2.0 or self._seen == self._size:
+                percent = (self._seen / self._size) * 100
+                bytes_since_last = self._seen - self._last_report_bytes
+                speed = (bytes_since_last / delta_time) / (1024 * 1024) if delta_time > 0 else 0
+                
+                logger.info(self._module, 
+                    f"Transfer: {percent:.1f}% | "
+                    f"{self._seen // (1024*1024)}MB / {self._size // (1024*1024)}MB | "
+                    f"Speed: {speed:.2f} MB/s"
+                )
+                
+                self._last_report_time = now
+                self._last_report_bytes = self._seen
 
 # --- 3. CORE LOGIC FUNCTIONS ---
 
 def get_input_file(input_url):
     module = "DOWNLOAD"
     parsed = urlparse(input_url)
-    base_name = os.path.basename(parsed.path) or "input_file"
+    base_name = os.path.basename(parsed.path) or f"input_{uuid.uuid4().hex[:8]}"
     local_path = os.path.join("/tmp", base_name)
     
     if input_url.startswith("s3://"):
         s3 = boto3.resource('s3')
-        bucket, key = parsed.netloc, parsed.path.lstrip('/')
-        obj = s3.Object(bucket, key)
+        bucket_name = parsed.netloc
+        key = parsed.path.lstrip('/')
+        
+        obj = s3.Object(bucket_name, key)
         size = obj.content_length
         
-        logger.info(module, f"S3 Source Detected: {size} bytes")
+        logger.info(module, f"S3 Source: s3://{bucket_name}/{key} ({size} bytes)")
+        
+        config = TransferConfig(
+            multipart_threshold=1024 * 25, 
+            max_concurrency=10,
+            multipart_chunksize=1024 * 25,
+            use_threads=True
+        )
+        
         progress = S3Progress(base_name, size, module)
-        config = TransferConfig(multipart_threshold=1024*50, max_concurrency=10)
         obj.download_file(local_path, Config=config, Callback=progress)
+        logger.info(module, "S3 Download Complete.")
     else:
-        # Curl -v handles headers, -# handles progress bar in raw output
+        # Curl -v and -# for real-time progress bar streaming
         run_command_streaming(["curl", "-f", "-L", "-v", "-#", input_url, "-o", local_path], module)
         
     return local_path, base_name
 
 def run_ffmpeg_task(task_args):
-    """Note: These run in parallel. Streaming output will be interleaved in logs."""
     output_path, seek_time, input_path = task_args
     module = "FFMPEG-THUMB"
     cmd = ["ffmpeg", "-loglevel", "info", "-accurate_seek", "-ss", f"{seek_time:.6f}", 
            "-i", input_path, "-vf", f"scale={W}:{H}", "-frames:v", "1", "-q:v", "2", output_path]
     
-    # We use run_command_streaming here so you see individual frame extraction logs
     try:
         run_command_streaming(cmd, module)
         return output_path
@@ -132,16 +157,15 @@ def run_ffmpeg_task(task_args):
 
 def extract_stills_multithreaded(input_path, output_dir, num, den, interval):
     module = "STILLS-ORCH"
-    logger.info(module, "Querying video metadata...")
+    logger.info(module, "Probing video duration...")
     
-    # Capture ffprobe output to get duration
     res = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", 
                           "-of", "default=noprint_wrappers=1:nokey=1", input_path], 
                          capture_output=True, text=True)
     duration = float(res.stdout.strip() or 0)
     total_stills = int((duration * num / den) / interval)
     
-    logger.info(module, f"Preparing to extract {total_stills} frames via {MAX_WORKERS} workers")
+    logger.info(module, f"Duration: {duration}s. Target: {total_stills} frames.")
 
     tasks = [(os.path.join(output_dir, f"still_{i}.jpg"), (den * interval * (i - 0.5)) / num, input_path) 
              for i in range(1, total_stills + 1)]
@@ -158,31 +182,44 @@ def extract_stills_multithreaded(input_path, output_dir, num, den, interval):
 def build_sprite_map_multithreaded(paths, output_spritemap):
     module = "IMAGEMAGICK"
     count = len(paths)
+    if count == 0: return
+    
     rows = int(math.ceil(math.sqrt(count)))
     cols = int(math.ceil(count / rows))
     
     row_tasks = []
     for i in range(rows):
-        temp_row = f"/tmp/row_{i}_{uuid.uuid4()}.jpg"
+        temp_row = f"/tmp/row_{i}_{uuid.uuid4().hex}.jpg"
         batch = paths[i*cols : (i+1)*cols]
         if batch: row_tasks.append((batch, temp_row))
 
     def stitch_row(args):
         batch, out = args
-        # Streaming the row creation
         run_command_streaming(["convert"] + batch + ["+append", out], "IM-ROW")
         return out
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="Stitch") as executor:
         row_paths = list(executor.map(stitch_row, row_tasks))
     
-    logger.info(module, "Final Assembly: Combining rows into vertical sprite sheet")
+    logger.info(module, f"Combining {len(row_paths)} rows into final sprite sheet.")
     run_command_streaming(["convert"] + row_paths + ["-append", "-quality", "80", "-interlace", "Plane", output_spritemap], module)
     
     for p in row_paths + paths: 
         if os.path.exists(p): os.remove(p)
 
-# --- 4. MAIN PROCESSOR ---
+def build_manifest(paths, num, den, interval):
+    count = len(paths)
+    rows = int(math.ceil(math.sqrt(count)))
+    cols = int(math.ceil(count / rows))
+    sprites = []
+    for i in range(count):
+        sprites.append({
+            "x": W * (i % cols), "y": H * int(i / cols),
+            "t": round((705600000.0 * interval * (i + 0.5) * den) / num)
+        })
+    return {"width": W, "height": H, "sprites": sprites}
+
+# --- 4. MAIN ORCHESTRATION ---
 
 def process_media(event, context=None):
     params = get_parameters(event)
@@ -193,22 +230,20 @@ def process_media(event, context=None):
     output_key = params.get('output_key')
     mode = params.get('mode')
 
-    logger.info("MAIN", f"=== STARTING JOB: {output_key} ===")
+    logger.info("MAIN", "--- WORKER START ---")
     
     try:
         local_input, base_name = get_input_file(input_url)
         
         if mode == 'metadata':
-            logger.info("METADATA", "Generating Metadata Report")
-            # Using the streaming runner for mediainfo/exiftool
-            report = {"file_name": base_name}
+            logger.info("METADATA", "Generating Metadata...")
             run_command_streaming(["mediainfo", "--Output=JSON", local_input], "MEDIAINFO")
-            # (Actual report assembly logic goes here)
+            pass
 
         elif mode == 'waveform':
             ext = os.path.splitext(local_input)[1].lower()
             local_dat = f"/tmp/{base_name}.dat"
-            zoom, bits = params['zoom'], params['bits']
+            zoom, bits = params.get('zoom', 128), params.get('bits', 8)
             
             if ext in ['.mp3', '.wav', '.aiff', '.aif']:
                 cmd = f"audiowaveform -i {local_input} --output-format dat --zoom {zoom} --bits {bits} -o {local_dat}"
@@ -226,17 +261,18 @@ def process_media(event, context=None):
             stills = extract_stills_multithreaded(local_input, "/tmp", num, den, interval)
             build_sprite_map_multithreaded(stills, local_sprite)
             
+            manifest_data = build_manifest(stills, num, den, interval)
             with open(local_manifest, 'w') as f:
-                json.dump({"width": W, "height": H, "count": len(stills)}, f)
+                json.dump(manifest_data, f)
             
-            logger.info("UPLOAD", "Uploading final artifacts")
+            logger.info("UPLOAD", "Uploading Sprite and Manifest.")
             s3_client.upload_file(local_sprite, bucket, f"{output_key}.jpg")
             s3_client.upload_file(local_manifest, bucket, f"{output_key}.json")
 
-        logger.info("MAIN", "=== JOB SUCCESS ===")
+        logger.info("MAIN", "--- JOB FINISHED SUCCESSFULLY ---")
         
     except Exception as e:
-        logger.error("MAIN", f"JOB FAILED: {str(e)}")
+        logger.error("MAIN", f"FATAL ERROR: {str(e)}")
         sys.exit(1)
     finally:
         if 'local_input' in locals() and os.path.exists(local_input):
