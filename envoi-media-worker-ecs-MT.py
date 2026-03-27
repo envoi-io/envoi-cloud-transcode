@@ -26,7 +26,7 @@ def download_s3_chunked(s3_url, local_path):
     
     response = s3.head_object(Bucket=bucket, Key=key)
     total_size = response['ContentLength']
-    chunk_size = 512 * 1024 * 1024 # 512MB chunks for balance
+    chunk_size = 512 * 1024 * 1024 # 512MB chunks
     
     print(f"Downloading s3://{bucket}/{key} ({total_size} bytes)...")
     with open(local_path, 'wb') as f:
@@ -83,7 +83,8 @@ def extract_stills_multithreaded(input_path, output_dir, num, den, interval):
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", 
                             "-of", "default=noprint_wrappers=1:nokey=1", input_path], 
                            capture_output=True, text=True)
-    duration = float(probe.stdout.strip() or 0)
+    duration_str = probe.stdout.strip()
+    duration = float(duration_str) if duration_str else 0
     total_stills = int((duration * num / den) / interval)
     
     tasks = [(os.path.join(output_dir, f"still{i}.png"), (den * interval * (i - 0.5)) / num + 0.000000999, input_path) 
@@ -118,7 +119,9 @@ def build_sprite_map_multithreaded(paths, output_spritemap):
         row_paths = list(executor.map(stitch_row, row_tasks))
     
     if row_paths:
+        # Quality 80 JPG
         subprocess.run(["convert"] + row_paths + ["-append", "-quality", "80", "-interlace", "Plane", output_spritemap])
+    
     for p in row_paths: 
         if os.path.exists(p): os.remove(p)
 
@@ -137,24 +140,40 @@ def build_manifest(paths, num, den, interval):
 # --- 4. RUNTIME LOGIC ---
 
 def get_parameters(event):
+    """Merged logic from Env Vars and Event."""
     params = event if event else {}
     env_mapping = {
-        'input_url': os.environ.get('input_url'), 'output_bucket': os.environ.get('output_bucket'),
-        'output_key': os.environ.get('output_key', 'output/media'), 'mode': os.environ.get('mode', 'sprite'),
-        'zoom': os.environ.get('zoom', '128'), 'bits': os.environ.get('bits', '8'),
-        'fps_num': os.environ.get('fps_num', '24000'), 'fps_den': os.environ.get('fps_den', '1001'),
+        'input_url': os.environ.get('input_url'), 
+        'output_bucket': os.environ.get('output_bucket'),
+        'output_key': os.environ.get('output_key', 'output/media'), 
+        'mode': os.environ.get('mode', 'sprite'),
+        'zoom': os.environ.get('zoom', '128'), 
+        'bits': os.environ.get('bits', '8'),
+        'fps_num': os.environ.get('fps_num', '24000'), 
+        'fps_den': os.environ.get('fps_den', '1001'),
         'frame_interval': os.environ.get('frame_interval', '300')
     }
     for k, v in env_mapping.items():
         if k not in params or params[k] is None:
-            if k in ['zoom', 'bits', 'fps_num', 'fps_den', 'frame_interval'] and v: params[k] = int(v)
-            else: params[k] = v
+            if k in ['zoom', 'bits', 'fps_num', 'fps_den', 'frame_interval'] and v: 
+                params[k] = int(v)
+            else: 
+                params[k] = v
     return params
 
-def main(event, context=None):
+def process_media(event, context=None):
+    # FIXED: Calling local function directly
     params = get_parameters(event)
     s3 = boto3.client('s3')
-    input_url, bucket, output_key, mode = params['input_url'], params['output_bucket'], params['output_key'], params['mode']
+    
+    input_url = params.get('input_url')
+    bucket = params.get('output_bucket')
+    output_key = params.get('output_key')
+    mode = params.get('mode')
+
+    if not input_url or not bucket:
+        print("Missing input_url or output_bucket.")
+        return
 
     local_input, base_name = get_input_file(input_url)
     
@@ -183,16 +202,18 @@ def main(event, context=None):
             
             stills = extract_stills_multithreaded(local_input, "/tmp", num, den, interval)
             build_sprite_map_multithreaded(stills, local_sprite)
-            manifest = build_manifest(stills, num, den, interval)
-            with open(local_manifest, 'w') as f: json.dump(manifest, f)
+            
+            manifest_json = build_manifest(stills, num, den, interval)
+            with open(local_manifest, 'w') as f: json.dump(manifest_json, f)
             
             s3.upload_file(local_sprite, bucket, f"{output_key}.jpg")
             s3.upload_file(local_manifest, bucket, f"{output_key}.json")
 
-        print(f"Job finished: {output_key}")
+        print(f"Job successfully finished: {output_key}")
     except Exception as e:
-        print(f"FATAL: {e}")
+        print(f"FATAL ERROR: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main({})
+    # Standard entry point for Fargate
+    process_media({}, None)
